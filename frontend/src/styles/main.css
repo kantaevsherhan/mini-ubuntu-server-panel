@@ -33,3 +33,39 @@ html[data-theme='light'] body {
 .muted {
   color: var(--p-text-muted-color);
 }
+
+:where(.p-button, .p-panelmenu-item-link, .p-menu-item-link) {
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.p-button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.p-button:not(:disabled):active {
+  transform: translateY(0) scale(0.98);
+}
+
+.file-row-selected {
+  background: var(--p-highlight-background);
+  color: var(--p-highlight-color);
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
