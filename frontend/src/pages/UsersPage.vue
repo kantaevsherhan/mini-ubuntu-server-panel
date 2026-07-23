@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
@@ -48,6 +47,7 @@ const saving = ref(false)
 const editorVisible = ref(false)
 const resetVisible = ref(false)
 const sessionsVisible = ref(false)
+const deleteVisible = ref(false)
 const selected = ref<PanelUser>()
 const mode = ref<'create' | 'edit'>('create')
 const resetPassword = ref('')
@@ -70,7 +70,13 @@ const form = reactive({
 })
 const roles = ['admin', 'operator', 'viewer']
 const availableGroups = ref<string[]>([])
-const confirm = useConfirm()
+const deleteOptions = reactive({
+  delete_panel_user: true,
+  delete_system_user: false,
+  delete_home_directory: false,
+  delete_ssh_keys: false,
+  terminate_sessions: false,
+})
 const toast = useToast()
 const { t, locale } = useI18n()
 
@@ -165,27 +171,34 @@ async function showSessions(user: PanelUser) {
 }
 
 function remove(user: PanelUser) {
-  confirm.require({
-    header: t.value.deleteUser,
-    message: `${t.value.deleteUserConfirm} ${user.username}?`,
-    icon: 'pi pi-exclamation-triangle',
-    rejectProps: { label: t.value.cancel, severity: 'secondary', outlined: true },
-    acceptProps: { label: t.value.delete, severity: 'danger' },
-    accept: async () => {
-      try {
-        await api.delete(`/users/${user.id}`)
-        toast.add({ severity: 'success', summary: t.value.deleted, life: 3000 })
-        await load()
-      } catch {
-        toast.add({
-          severity: 'error',
-          summary: t.value.operationFailed,
-          detail: t.value.lastAdminHint,
-          life: 5000,
-        })
-      }
-    },
+  selected.value = user
+  Object.assign(deleteOptions, {
+    delete_panel_user: true,
+    delete_system_user: false,
+    delete_home_directory: false,
+    delete_ssh_keys: false,
+    terminate_sessions: false,
   })
+  deleteVisible.value = true
+}
+
+async function submitDelete() {
+  if (!selected.value) return
+  saving.value = true
+  try {
+    await api.delete(`/users/${selected.value.id}`, {
+      data: {
+        ...deleteOptions,
+        delete_home_directory:
+          deleteOptions.delete_system_user && deleteOptions.delete_home_directory,
+      },
+    })
+    deleteVisible.value = false
+    toast.add({ severity: 'success', summary: t.value.deleted, life: 3000 })
+    await load()
+  } finally {
+    saving.value = false
+  }
 }
 
 async function loadSystemGroups() {
@@ -366,6 +379,59 @@ onMounted(load)
           :loading="saving"
           :disabled="mode === 'create' && !form.create_panel_user && !form.create_system_user"
       /></template>
+    </Dialog>
+
+    <Dialog
+      v-model:visible="deleteVisible"
+      modal
+      :header="`${t.deleteUser}: ${selected?.username || ''}`"
+      :style="{ width: 'min(32rem, calc(100vw - 2rem))' }"
+    >
+      <div class="grid gap-4">
+        <label class="flex items-center gap-3">
+          <Checkbox v-model="deleteOptions.delete_panel_user" binary />{{ t.deletePanelUser }}
+        </label>
+        <label class="flex items-center gap-3">
+          <Checkbox
+            v-model="deleteOptions.delete_system_user"
+            binary
+            :disabled="!selected?.system_username"
+          />{{ t.deleteSystemUser }}
+        </label>
+        <label class="flex items-center gap-3 pl-8">
+          <Checkbox
+            v-model="deleteOptions.delete_home_directory"
+            binary
+            :disabled="!deleteOptions.delete_system_user"
+          />{{ t.deleteHomeDirectory }}
+        </label>
+        <label class="flex items-center gap-3">
+          <Checkbox
+            v-model="deleteOptions.delete_ssh_keys"
+            binary
+            :disabled="!selected?.system_username"
+          />{{ t.deleteSSHKeys }}
+        </label>
+        <label class="flex items-center gap-3">
+          <Checkbox v-model="deleteOptions.terminate_sessions" binary />{{ t.terminateSessions }}
+        </label>
+      </div>
+      <template #footer>
+        <Button :label="t.cancel" severity="secondary" text @click="deleteVisible = false" />
+        <Button
+          :label="t.delete"
+          icon="pi pi-trash"
+          severity="danger"
+          :loading="saving"
+          :disabled="
+            !deleteOptions.delete_panel_user &&
+            !deleteOptions.delete_system_user &&
+            !deleteOptions.delete_ssh_keys &&
+            !deleteOptions.terminate_sessions
+          "
+          @click="submitDelete"
+        />
+      </template>
     </Dialog>
 
     <Dialog

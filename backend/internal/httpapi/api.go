@@ -411,7 +411,7 @@ func (a API) createUser(c *fiber.Ctx) error {
 		hash, err := auth.Hash(request.Password)
 		if err != nil {
 			if systemCreated {
-				_ = a.SystemUsers.Delete(c.UserContext(), systemusers.DeleteRequest{Username: request.SystemUsername, RemoveHome: request.CreateHome})
+				_ = a.SystemUsers.Delete(c.UserContext(), systemusers.DeleteRequest{Username: request.SystemUsername, DeleteUser: true, RemoveHome: request.CreateHome})
 			}
 			return err
 		}
@@ -423,7 +423,7 @@ func (a API) createUser(c *fiber.Ctx) error {
 		user = database.User{Username: request.Username, DisplayName: request.DisplayName, PasswordHash: hash, Role: request.Role, IsActive: true, SystemUsername: systemUsername, CreatedAt: now, UpdatedAt: now}
 		if err := a.DB.WithContext(c.UserContext()).Create(&user).Error; err != nil {
 			if systemCreated {
-				if rollbackErr := a.SystemUsers.Delete(c.UserContext(), systemusers.DeleteRequest{Username: request.SystemUsername, RemoveHome: request.CreateHome}); rollbackErr != nil {
+				if rollbackErr := a.SystemUsers.Delete(c.UserContext(), systemusers.DeleteRequest{Username: request.SystemUsername, DeleteUser: true, RemoveHome: request.CreateHome}); rollbackErr != nil {
 					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "panel_user_create_failed_rollback_failed"})
 				}
 			}
@@ -504,9 +504,6 @@ func (a API) deleteUser(c *fiber.Ctx) error {
 		return fiber.ErrBadRequest
 	}
 	claims := c.Locals("claims").(*auth.Claims)
-	if targetID == claims.UserID {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "cannot_delete_self"})
-	}
 	var target database.User
 	if err := a.DB.WithContext(c.UserContext()).First(&target, targetID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -514,18 +511,104 @@ func (a API) deleteUser(c *fiber.Ctx) error {
 		}
 		return err
 	}
-	if target.Role == "admin" && target.IsActive {
+	var request struct {
+		DeletePanelUser   *bool `json:"delete_panel_user"`
+		DeleteSystemUser  bool  `json:"delete_system_user"`
+		DeleteHome        bool  `json:"delete_home_directory"`
+		DeleteSSHKeys     bool  `json:"delete_ssh_keys"`
+		TerminateSessions bool  `json:"terminate_sessions"`
+	}
+	if len(c.Body()) > 0 {
+		if err := c.BodyParser(&request); err != nil {
+			return fiber.ErrBadRequest
+		}
+	}
+	deletePanel := request.DeletePanelUser == nil || *request.DeletePanelUser
+	if request.DeleteHome && !request.DeleteSystemUser {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "home_delete_requires_system_user_delete"})
+	}
+	if !deletePanel && !request.DeleteSystemUser && !request.DeleteSSHKeys && !request.TerminateSessions {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "user_delete_target_required"})
+	}
+	if deletePanel && targetID == claims.UserID {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "cannot_delete_self"})
+	}
+	if deletePanel && target.Role == "admin" && target.IsActive {
 		if last, err := a.isLastActiveAdmin(c.UserContext(), targetID); err != nil {
 			return err
 		} else if last {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "last_admin_protected"})
 		}
 	}
-	if err := a.DB.WithContext(c.UserContext()).Delete(&target).Error; err != nil {
-		return err
+	if (request.DeleteSystemUser || request.DeleteSSHKeys) && target.SystemUsername == nil {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "system_user_not_linked"})
 	}
-	database.Audit(a.DB, claims.UserID, "user.delete", "user", strconv.FormatInt(targetID, 10), "{}", c.IP())
+	needsSystemHelper := request.DeleteSystemUser || request.DeleteSSHKeys || (request.TerminateSessions && target.SystemUsername != nil)
+	if needsSystemHelper && a.SystemUsers == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "system_user_service_unavailable"})
+	}
+
+	var sessions []database.WebSession
+	if deletePanel || request.TerminateSessions {
+		if err := a.DB.WithContext(c.UserContext()).Where("user_id = ?", target.ID).Find(&sessions).Error; err != nil {
+			return err
+		}
+	}
+	if deletePanel {
+		if err := a.DB.WithContext(c.UserContext()).Delete(&target).Error; err != nil {
+			return err
+		}
+	} else if request.TerminateSessions {
+		now := time.Now().UTC()
+		if err := a.DB.WithContext(c.UserContext()).Model(&database.WebSession{}).Where("user_id = ? AND revoked_at IS NULL", target.ID).Update("revoked_at", now).Error; err != nil {
+			return err
+		}
+	}
+
+	if target.SystemUsername != nil && needsSystemHelper {
+		systemRequest := systemusers.DeleteRequest{
+			Username: *target.SystemUsername, DeleteUser: request.DeleteSystemUser, RemoveHome: request.DeleteHome,
+			RemoveSSHKeys: request.DeleteSSHKeys, TerminateSessions: request.TerminateSessions,
+		}
+		if err := a.SystemUsers.Delete(c.UserContext(), systemRequest); err != nil {
+			if deletePanel {
+				if rollbackErr := restorePanelUser(a.DB.WithContext(c.UserContext()), target, sessions); rollbackErr != nil {
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "system_user_delete_failed_rollback_failed"})
+				}
+			} else if request.TerminateSessions {
+				if rollbackErr := restoreSessions(a.DB.WithContext(c.UserContext()), sessions); rollbackErr != nil {
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "system_user_delete_failed_rollback_failed"})
+				}
+			}
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "system_user_delete_failed"})
+		}
+	}
+	details := fmt.Sprintf(`{"panel_user":%t,"system_user":%t,"home":%t,"ssh_keys":%t,"sessions":%t}`, deletePanel, request.DeleteSystemUser, request.DeleteHome, request.DeleteSSHKeys, request.TerminateSessions)
+	database.Audit(a.DB, claims.UserID, "user.delete", "user", strconv.FormatInt(targetID, 10), details, c.IP())
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func restoreSessions(db *gorm.DB, sessions []database.WebSession) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		for index := range sessions {
+			if err := tx.Save(&sessions[index]).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func restorePanelUser(db *gorm.DB, target database.User, sessions []database.WebSession) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&target).Error; err != nil {
+			return err
+		}
+		if len(sessions) > 0 {
+			return tx.Create(&sessions).Error
+		}
+		return nil
+	})
 }
 
 func (a API) resetUserPassword(c *fiber.Ctx) error {

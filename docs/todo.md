@@ -25,7 +25,7 @@
 - [x] Исторические CPU/RAM метрики: SQLite samples, `/proc` collector, range API и ECharts день/неделя/месяц/всё время.
 - [x] Полный CRUD panel users, web sessions и обязательная смена временного пароля.
 - [x] Транзакционное создание panel + Ubuntu user с compensating rollback и integration test.
-- [ ] Связь `system_username`, группы, sudo, SSH keys и sessions.
+- [ ] Полная карточка связи `system_username`: группы, sudo, SSH keys, активные SSH sessions и последний Ubuntu login. Создание, отображение системных групп/флагов и управляемое удаление уже готовы.
 - [x] Telegram getMe/getUpdates/sendMessage, SSRF-safe transport и recipients UI.
 - [ ] Привилегированное изменение Telegram Bot Token через CLI helper без передачи token в argv, лог или SQLite.
 - [x] Notification queue worker с delivery status, retry, exponential backoff и dedup.

@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -22,6 +24,7 @@ type fakeSystemUsers struct {
 	createRequest  *systemusers.CreateRequest
 	deleteRequest  *systemusers.DeleteRequest
 	injectConflict bool
+	deleteError    error
 }
 
 func (f *fakeSystemUsers) Exists(string) (bool, error) { return false, nil }
@@ -40,7 +43,45 @@ func (f *fakeSystemUsers) Create(_ context.Context, request systemusers.CreateRe
 
 func (f *fakeSystemUsers) Delete(_ context.Context, request systemusers.DeleteRequest) error {
 	f.deleteRequest = &request
-	return nil
+	return f.deleteError
+}
+
+func TestDeleteUserRestoresPanelAndSessionsWhenSystemDeleteFails(t *testing.T) {
+	db, token := testAuthorizedDB(t)
+	systemUsername := "linked-user"
+	hash, err := auth.Hash("linked-test-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := database.User{Username: "linked", DisplayName: "Linked", PasswordHash: hash, Role: "viewer", IsActive: true, SystemUsername: &systemUsername}
+	if err := db.Create(&target).Error; err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	session := database.WebSession{ID: "linked-session", UserID: target.ID, IPAddress: "127.0.0.1", CreatedAt: now, LastSeenAt: now, ExpiresAt: now.Add(time.Hour)}
+	if err := db.Create(&session).Error; err != nil {
+		t.Fatal(err)
+	}
+	fake := &fakeSystemUsers{db: db, deleteError: errors.New("user is busy")}
+	app := fiber.New()
+	API{DB: db, SystemUsers: fake, Secret: "test-secret-that-is-long-enough"}.Register(app)
+	payload, _ := json.Marshal(map[string]any{"delete_panel_user": true, "delete_system_user": true, "terminate_sessions": true})
+	request := httptest.NewRequest(http.MethodDelete, "/api/v1/users/"+strconv.FormatInt(target.ID, 10), bytes.NewReader(payload))
+	request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+	request.Header.Set(fiber.HeaderAuthorization, "Bearer "+token)
+	response, err := app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusConflict {
+		t.Fatalf("expected 409, got %d", response.StatusCode)
+	}
+	var userCount, sessionCount int64
+	_ = db.Model(&database.User{}).Where("id = ?", target.ID).Count(&userCount).Error
+	_ = db.Model(&database.WebSession{}).Where("id = ?", session.ID).Count(&sessionCount).Error
+	if userCount != 1 || sessionCount != 1 {
+		t.Fatalf("rollback incomplete: users=%d sessions=%d", userCount, sessionCount)
+	}
 }
 
 func TestCreatePanelAndSystemUser(t *testing.T) {
@@ -80,7 +121,7 @@ func TestCreateUserRollsBackSystemUserOnPanelConflict(t *testing.T) {
 	if response.StatusCode != http.StatusConflict {
 		t.Fatalf("expected 409, got %d", response.StatusCode)
 	}
-	if fake.deleteRequest == nil || fake.deleteRequest.Username != "collision" || !fake.deleteRequest.RemoveHome {
+	if fake.deleteRequest == nil || fake.deleteRequest.Username != "collision" || !fake.deleteRequest.DeleteUser || !fake.deleteRequest.RemoveHome {
 		t.Fatal("created system user was not rolled back")
 	}
 }

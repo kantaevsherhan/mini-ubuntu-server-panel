@@ -50,8 +50,11 @@ type CreateRequest struct {
 }
 
 type DeleteRequest struct {
-	Username   string `json:"username"`
-	RemoveHome bool   `json:"remove_home"`
+	Username          string `json:"username"`
+	DeleteUser        bool   `json:"delete_user"`
+	RemoveHome        bool   `json:"remove_home"`
+	RemoveSSHKeys     bool   `json:"remove_ssh_keys"`
+	TerminateSessions bool   `json:"terminate_sessions"`
 }
 
 type privilegedRequest struct {
@@ -179,7 +182,7 @@ func create(request CreateRequest) error {
 	}
 	if request.AllowSSH && request.SSHPublicKey != "" {
 		if err := installSSHKey(request); err != nil {
-			_ = remove(DeleteRequest{Username: request.Username, RemoveHome: request.CreateHome})
+			_ = remove(DeleteRequest{Username: request.Username, DeleteUser: true, RemoveHome: request.CreateHome})
 			return err
 		}
 	}
@@ -190,6 +193,38 @@ func remove(request DeleteRequest) error {
 	if !usernamePattern.MatchString(request.Username) || request.Username == "root" {
 		return ErrInvalidRequest
 	}
+	if !request.DeleteUser && !request.RemoveSSHKeys && !request.TerminateSessions {
+		return ErrInvalidRequest
+	}
+	account, err := user.Lookup(request.Username)
+	if err != nil {
+		return err
+	}
+	if request.TerminateSessions {
+		output, err := exec.Command("/usr/bin/loginctl", "terminate-user", request.Username).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("terminate sessions failed: %w: %s", err, strings.TrimSpace(string(output)))
+		}
+	}
+	var keyBackup []byte
+	keyPath := filepath.Join(account.HomeDir, ".ssh", "authorized_keys")
+	if request.RemoveSSHKeys {
+		if err := validateSSHKeyPath(account.HomeDir, keyPath); err != nil {
+			return err
+		}
+		keyBackup, err = os.ReadFile(keyPath)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		if err == nil {
+			if err := os.Remove(keyPath); err != nil {
+				return err
+			}
+		}
+	}
+	if !request.DeleteUser {
+		return nil
+	}
 	args := make([]string, 0, 2)
 	if request.RemoveHome {
 		args = append(args, "--remove")
@@ -197,9 +232,57 @@ func remove(request DeleteRequest) error {
 	args = append(args, request.Username)
 	output, err := exec.Command("/usr/sbin/userdel", args...).CombinedOutput()
 	if err != nil {
+		if len(keyBackup) > 0 {
+			_ = restoreSSHKey(account, keyPath, keyBackup)
+		}
 		return fmt.Errorf("userdel failed: %w: %s", err, strings.TrimSpace(string(output)))
 	}
 	return nil
+}
+
+func validateSSHKeyPath(home, keyPath string) error {
+	cleanHome := filepath.Clean(home)
+	if !filepath.IsAbs(cleanHome) || !strings.HasPrefix(cleanHome, "/home/") || filepath.Clean(keyPath) != keyPath {
+		return ErrInvalidRequest
+	}
+	for _, path := range []string{cleanHome, filepath.Join(cleanHome, ".ssh")} {
+		info, err := os.Lstat(path)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) && strings.HasSuffix(path, ".ssh") {
+				return nil
+			}
+			return err
+		}
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return ErrInvalidRequest
+		}
+	}
+	info, err := os.Lstat(keyPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return ErrInvalidRequest
+	}
+	return nil
+}
+
+func restoreSSHKey(account *user.User, keyPath string, content []byte) error {
+	uid, err := strconv.Atoi(account.Uid)
+	if err != nil {
+		return err
+	}
+	gid, err := strconv.Atoi(account.Gid)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(keyPath, content, 0o600); err != nil {
+		return err
+	}
+	return os.Chown(keyPath, uid, gid)
 }
 
 func validateCreate(request CreateRequest) error {
