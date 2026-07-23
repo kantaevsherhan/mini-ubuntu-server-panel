@@ -2,7 +2,7 @@
 
 Mini Ubuntu Server Panel — web-панель управления Ubuntu Server с backend на Go/Fiber и frontend на Vue 3. Проект ориентирован на Ubuntu 24.04, тёмный desktop-first интерфейс и установку из GitHub Releases.
 
-Проект находится в активной разработке. Готов фундамент авторизации, SQLite, аудита, транзакционного создания panel/Ubuntu-пользователей, Telegram-настроек, очереди и правил уведомлений, dashboard, управление Linux-процессами, systemd-сервисами, Docker-контейнерами, UFW, journald, allowlisted файлами, защищённый web-терминал и production-упаковка. Updater worker и оставшиеся настройки развиваются поэтапно.
+Проект находится в активной разработке. Реализованы авторизация, SQLite-аудит, транзакционное создание panel/Ubuntu-пользователей, Telegram-настройки, очередь и правила уведомлений, dashboard, управление Linux-процессами, systemd-сервисами, Docker-контейнерами, UFW, journald, allowlisted файлами, защищённый web-терминал, встроенный updater/uninstaller и production-упаковка.
 
 Dashboard сохраняет минутные CPU/RAM samples из Linux `/proc` в SQLite и показывает ECharts-график за день, неделю, месяц или всё время с серверным downsampling.
 
@@ -21,6 +21,8 @@ Dashboard сохраняет минутные CPU/RAM samples из Linux `/proc`
 Web-терминал использует xterm.js и непривилегированный PTY системного пользователя `mini-ubuntu-server`. JWT не передаётся в WebSocket URL: frontend запрашивает одноразовый 30-секундный ticket и передаёт его в `Sec-WebSocket-Protocol`. Backend проверяет same-origin, IP, RBAC, размер и частоту сообщений, ограничивает число и длительность сессий и не записывает команды в аудит.
 
 Settings объединяет 14 продуктовых разделов в RBAC-filtered PrimeVue Tabs. Операционные значения читаются через отдельный overview API, а admin может безопасно проверить последнюю стабильную версию через фиксированный GitHub Releases endpoint; URL из браузера backend не принимает.
+
+Раздел «Аудит» доступен только admin и показывает виртуализированный неизменяемый журнал действий с actor ID, целью, IP, локализованным временем и деталями. Раздел «Уведомления» показывает Telegram delivery history admin/operator; редактирование правил, получателей, cooldown и recovery остаётся только у admin.
 
 ## Имена проекта
 

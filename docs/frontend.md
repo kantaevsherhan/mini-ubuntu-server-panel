@@ -42,7 +42,7 @@ bun audit
 
 `check` запускает Prettier check, ESLint без warnings, TypeScript и production build. Маршруты загружаются лениво для уменьшения начального bundle.
 
-`bun run e2e` запускает Playwright в desktop Chromium 1440×900 и mobile Pixel 7 projects. Smoke мокирует API на network boundary и проверяет Dashboard, responsive Drawer/sidebar, Settings, отсутствие page overflow и PrimeVue Toast для server errors. Layout монтирует ровно один `RouterView` через `matchMedia`, поэтому hidden breakpoint не создаёт дублирующие API-запросы.
+`bun run e2e` запускает Playwright в desktop Chromium 1440×900 и mobile Pixel 7 projects. Smoke мокирует API на network boundary и проверяет Dashboard, responsive Drawer/sidebar, Settings, Audit, Notifications, отсутствие page overflow и PrimeVue Toast для server errors. Layout монтирует ровно один `RouterView` через `matchMedia`, поэтому hidden breakpoint не создаёт дублирующие API-запросы.
 
 Dashboard загружает ECharts модульно (`echarts/core`) и показывает CPU/RAM за день, неделю, месяц или всё время. Диапазон выбирается PrimeVue `SelectButton`, а даты оси форматируются Moment.js согласно выбранному языку.
 
@@ -61,3 +61,7 @@ Files page использует PrimeVue `Breadcrumb`, `Select`, virtual `DataTa
 Terminal page лениво загружает xterm.js вместе с route chunk и использует PrimeVue `Button`, `Tag` и `Message`. Высота и fullscreen state сохраняются в `localStorage`; `ResizeObserver` синхронизирует bounded PTY size. Соединение создаётся только после REST ticket, передаваемого не в URL, а через WebSocket subprotocol. Ошибки ticket-запроса показывает глобальный API Toast, ошибки upgrade — локальный PrimeVue Toast.
 
 Settings page содержит все разделы из product menu: General, Interface, Metrics, Data storage, Users and roles, Allowed directories, Docker, Systemd, Firewall, Telegram, Notifications, Security, Backups и Updates. Tabs фильтруются по роли; системные разделы используют read-only backend overview и ведут к соответствующим рабочим модулям, Telegram/notification controls остаются admin-only. Update checker показывает current/latest release и открывает только allowlisted GitHub Release URL; установка из браузера намеренно не запускается без отдельного привилегированного updater flow.
+
+Audit page — отдельный admin-only route с PrimeVue virtual `DataTable`, поиском и `Dialog` деталей. API возвращает actor ID и IP вместе с действием и целью; даты проходят общий Moment.js formatter.
+
+Notifications page использует общий `NotificationSettings`: admin видит правила и редактор, operator загружает только разрешённый read-only delivery history endpoint. Это исключает лишние 403-запросы и сохраняет backend RBAC как обязательную границу.

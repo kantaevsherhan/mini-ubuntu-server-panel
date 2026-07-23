@@ -46,6 +46,16 @@ const router = createRouter({
           component: () => import('../pages/UsersPage.vue'),
           meta: { roles: ['admin', 'operator'] },
         },
+        {
+          path: 'audit',
+          component: () => import('../pages/AuditPage.vue'),
+          meta: { roles: ['admin'] },
+        },
+        {
+          path: 'notifications',
+          component: () => import('../pages/NotificationsPage.vue'),
+          meta: { roles: ['admin', 'operator'] },
+        },
         { path: 'settings', component: () => import('../pages/SettingsPage.vue') },
         {
           path: ':section',

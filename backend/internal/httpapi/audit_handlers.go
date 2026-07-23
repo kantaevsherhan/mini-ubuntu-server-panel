@@ -13,7 +13,11 @@ func (a API) audit(c *fiber.Ctx) error {
 	}
 	result := make([]fiber.Map, 0)
 	for _, event := range events {
-		result = append(result, fiber.Map{"id": event.ID, "action": event.Action, "target_type": event.TargetType, "target_id": event.TargetID, "details": event.DetailsJSON, "created_at": event.CreatedAt})
+		result = append(result, fiber.Map{
+			"id": event.ID, "actor_user_id": event.ActorUserID, "action": event.Action,
+			"target_type": event.TargetType, "target_id": event.TargetID, "details": event.DetailsJSON,
+			"ip_address": event.IPAddress, "created_at": event.CreatedAt,
+		})
 	}
 	return c.JSON(result)
 }

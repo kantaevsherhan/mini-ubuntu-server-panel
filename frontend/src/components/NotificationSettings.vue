@@ -17,6 +17,8 @@ import api from '../services/api'
 import { formatDateTime } from '../services/dateTime'
 import { notificationEventLabel, useI18n } from '../services/i18n'
 
+const props = withDefaults(defineProps<{ readOnly?: boolean }>(), { readOnly: false })
+
 interface Rule {
   event_key: string
   enabled: boolean
@@ -71,6 +73,10 @@ const { t, locale } = useI18n()
 async function load() {
   loading.value = true
   try {
+    if (props.readOnly) {
+      history.value = (await api.get<HistoryEvent[]>('/notifications/history')).data
+      return
+    }
     const [rulesResponse, recipientsResponse, historyResponse] = await Promise.all([
       api.get<Rule[]>('/notifications/rules'),
       api.get<Recipient[]>('/telegram/recipients'),
@@ -133,7 +139,7 @@ onMounted(load)
 
 <template>
   <div class="grid gap-4">
-    <Card>
+    <Card v-if="!props.readOnly">
       <template #title>{{ t.notificationRules }}</template>
       <template #content>
         <DataTable
@@ -230,6 +236,7 @@ onMounted(load)
     </Card>
 
     <Dialog
+      v-if="!props.readOnly"
       v-model:visible="editorVisible"
       modal
       :header="notificationEventLabel(selectedKey, locale)"

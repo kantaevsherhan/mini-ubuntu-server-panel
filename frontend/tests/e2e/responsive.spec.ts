@@ -61,6 +61,35 @@ test.beforeEach(async ({ page }) => {
       })
       return
     }
+    if (path === '/api/v1/audit') {
+      await route.fulfill({
+        json: [
+          {
+            id: 1,
+            actor_user_id: 1,
+            action: 'auth.login',
+            target_type: 'user',
+            target_id: 'admin',
+            details: '{}',
+            ip_address: '127.0.0.1',
+            created_at: '2026-07-24T12:00:00Z',
+          },
+        ],
+      })
+      return
+    }
+    if (path === '/api/v1/notifications/rules') {
+      await route.fulfill({ json: [] })
+      return
+    }
+    if (path === '/api/v1/telegram/recipients') {
+      await route.fulfill({ json: [] })
+      return
+    }
+    if (path === '/api/v1/notifications/history') {
+      await route.fulfill({ json: [] })
+      return
+    }
     await route.fulfill({ status: 404, json: { error: 'not_found' } })
   })
 })
@@ -98,4 +127,20 @@ test('server errors are shown through PrimeVue Toast', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByText('Ошибка запроса')).toBeVisible()
   await expect(page.getByText('Код ошибки: internal_error')).toBeVisible()
+})
+
+test('audit and notification modules render real responsive pages', async ({ page }) => {
+  await page.goto('/audit')
+  await expect(page.getByRole('heading', { name: 'Аудит' })).toBeVisible()
+  await expect(page.getByText('auth.login')).toBeVisible()
+
+  await page.goto('/notifications')
+  await expect(page.getByRole('heading', { name: 'Уведомления' })).toBeVisible()
+  await expect(page.getByText('Правила уведомлений')).toBeVisible()
+  await expect(page.getByText('История доставки', { exact: true })).toBeVisible()
+
+  const overflows = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth + 1,
+  )
+  expect(overflows).toBe(false)
 })
