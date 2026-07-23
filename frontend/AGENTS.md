@@ -26,6 +26,7 @@ Before changing any visual UI, read and follow `DESIGN.md`. It is the single sou
 - Route access rules belong in `src/router`.
 - Prefer lazy-loaded routes for large pages and heavy libraries such as Monaco, ECharts, and xterm.js.
 - All destructive actions require PrimeVue ConfirmDialog and visible error/success feedback.
+- All HTTP and network failures must be surfaced through the centralized PrimeVue Toast handler. Do not silently swallow API errors or expose raw backend exception text.
 
 ## Mandatory post-task commands
 

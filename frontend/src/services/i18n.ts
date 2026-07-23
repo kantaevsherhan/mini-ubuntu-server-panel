@@ -69,6 +69,10 @@ const messages = {
     sessionsRevoked: 'Активные сессии пользователя завершены.',
     lastActivity: 'Последняя активность',
     revoked: 'Отозвана',
+    requestError: 'Ошибка запроса',
+    networkError: 'Сервер недоступен',
+    networkErrorHint: 'Проверьте соединение и состояние backend.',
+    errorCode: 'Код ошибки',
   },
   en: {
     dashboard: 'Dashboard',
@@ -136,6 +140,10 @@ const messages = {
     sessionsRevoked: 'The user sessions were revoked.',
     lastActivity: 'Last activity',
     revoked: 'Revoked',
+    requestError: 'Request failed',
+    networkError: 'Server unavailable',
+    networkErrorHint: 'Check the connection and backend status.',
+    errorCode: 'Error code',
   },
 } as const
 export function useI18n() {

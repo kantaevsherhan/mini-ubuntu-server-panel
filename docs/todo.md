@@ -17,6 +17,7 @@
 - [x] Скрипты install/update/uninstall/release и systemd unit.
 - [x] SHA-256 release verification и update backup/rollback для binary.
 - [x] GitHub Actions для amd64/arm64 releases.
+- [x] Централизованный PrimeVue Toast для API и network errors.
 
 ## В работе / следующий приоритет
 
