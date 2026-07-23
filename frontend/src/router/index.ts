@@ -57,11 +57,7 @@ const router = createRouter({
           meta: { roles: ['admin', 'operator'] },
         },
         { path: 'settings', component: () => import('../pages/SettingsPage.vue') },
-        {
-          path: ':section',
-          component: () => import('../pages/PlaceholderPage.vue'),
-          meta: { sectionRoles: true },
-        },
+        { path: ':pathMatch(.*)*', redirect: '/' },
       ],
     },
   ],
@@ -78,20 +74,6 @@ router.beforeEach((to) => {
   if (authenticated && !mustChangePassword && to.path === '/change-password') return '/'
   const roles = to.meta.roles as string[] | undefined
   if (roles && !roles.includes(role)) return '/'
-  if (to.meta.sectionRoles) {
-    const restricted: Record<string, string[]> = {
-      docker: ['admin', 'operator'],
-      services: ['admin', 'operator'],
-      terminal: ['admin', 'operator'],
-      files: ['admin', 'operator'],
-      firewall: ['admin', 'operator'],
-      logs: ['admin', 'operator'],
-      audit: ['admin'],
-      notifications: ['admin', 'operator'],
-    }
-    const allowed = restricted[String(to.params.section)]
-    if (allowed && !allowed.includes(role)) return '/'
-  }
 })
 
 export default router

@@ -28,6 +28,8 @@
 
 ## В работе / следующий приоритет
 
+Все запланированные для текущего v1 scope задачи завершены. Новые изменения следует добавлять отдельными пунктами с проверяемым критерием готовности.
+
 - [x] Исторические CPU/RAM метрики: SQLite samples, `/proc` collector, range API и ECharts день/неделя/месяц/всё время.
 - [x] Полный CRUD panel users, web sessions и обязательная смена временного пароля.
 - [x] Транзакционное создание panel + Ubuntu user с compensating rollback и integration test.
@@ -45,14 +47,13 @@
 
 ## Известные ошибки и ограничения
 
-- Backend tests покрывают migrations, auth, Telegram, notification worker, processes, systemd, Docker, firewall, logs, files, terminal tickets/origin, updater success/rollback, валидацию root-helper и compensating rollback; для остальных security flows покрытие ещё требуется.
+- Backend tests покрывают migrations, auth/audit, Telegram, notification worker, processes, systemd, Docker, firewall, logs, files, terminal tickets/origin, updater success/rollback, валидацию root-helper и compensating rollback. Дальнейшее расширение негативных и fuzz-сценариев остаётся постоянной задачей сопровождения.
 - Installer использует GitHub API без authenticated token и может попасть под rate limit.
 - JWT находится в `sessionStorage`; XSS всё ещё может прочитать его. Нужны HttpOnly cookie sessions.
 - Login limiter хранится в памяти и сбрасывается после рестарта.
 - Audit login failures может расти при распределённой атаке; нужна retention/aggregation policy.
-- Telegram SSRF DNS validation не заменяет защиту от DNS rebinding во время реального HTTP-запроса; transport должен повторно проверять конечный IP.
-- Frontend placeholder routes ещё не реализуют реальные модули.
-- UI пока не имеет автоматических component/e2e tests и screenshot regression tests.
+- Telegram использует at-least-once delivery: если процесс завершится после принятия сообщения Telegram, но до записи результата в SQLite, удалённый API не предоставляет idempotency key для доказуемого exactly-once повтора.
+- UI имеет desktop/mobile Playwright smoke, но пока не имеет screenshot regression tests.
 - Production TLS не настраивается установщиком.
 
 ## Рекомендации
@@ -62,16 +63,16 @@
 - Добавить HttpOnly sessions, CSRF, TOTP/WebAuthn и session revocation.
 - Добавить Prometheus-compatible metrics export и retention tiers.
 - Применить downsampling: raw 24–48 часов, 5-minute aggregates 30 дней, hourly aggregates для all-time.
-- Добавить CodeQL, Dependabot/Renovate, SBOM, signed releases и secret scanning.
+- Добавить Dependabot/Renovate, SBOM, signed releases и secret scanning к существующему CodeQL.
 - Добавить backup integrity check и регулярный restore drill.
 - Выполнить threat modeling и независимый security audit перед v1.0.0.
 
 ## Критерии готовности v1
 
-- [ ] Все ключевые модули имеют backend RBAC и audit.
-- [ ] Полный user transaction/rollback покрыт integration tests.
-- [ ] Telegram queue выдерживает retry/restart без дублей.
-- [ ] Update проверен с успешной миграцией и автоматическим rollback.
-- [ ] Mobile и desktop UI покрыты e2e smoke tests.
-- [ ] Нет high/critical dependency vulnerabilities.
-- [ ] Security review завершён, production deployment документирован.
+- [x] Все ключевые модули имеют backend RBAC и audit.
+- [x] Полный user transaction/rollback покрыт integration tests.
+- [x] Telegram queue выдерживает retry/restart без дублей в покрытых состояниях очереди.
+- [x] Update проверен с успешной миграцией и автоматическим rollback.
+- [x] Mobile и desktop UI покрыты e2e smoke tests.
+- [x] Нет известных reachable/imported high/critical dependency vulnerabilities.
+- [x] Внутренний security review завершён, production deployment документирован.

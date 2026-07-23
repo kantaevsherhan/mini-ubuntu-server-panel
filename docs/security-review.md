@@ -34,6 +34,7 @@ There are no known open Critical/High reachable dependency findings in the revie
 - Docker socket access is root-equivalent and remains explicit opt-in.
 - Login throttling is per-process memory state and resets on restart; upstream rate limits/VPN are required for public ingress.
 - SHA-256 files are downloaded from the same GitHub release trust domain. Signed provenance and SBOM remain recommended.
+- Telegram delivery is at-least-once. A crash after the remote API accepts a message but before SQLite records success can be replayed because Bot API `sendMessage` has no client idempotency key; cooldown/dedup and restart recovery cover all locally observable states, not that ambiguous external boundary.
 - `govulncheck -show verbose` reports the unmaintained `x/crypto/openpgp` module advisory, but the project imports bcrypt only; no vulnerable OpenPGP package or symbol is imported/reachable and the upstream module has no fixed version for that advisory.
 - No internal review can substitute for an independent penetration test. Public exposure is not approved without one.
 
