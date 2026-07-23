@@ -12,6 +12,7 @@ command -v go >/dev/null || { echo "Go is required" >&2; exit 1; }
 
 cd "$PROJECT_DIR/frontend"
 bun install --frozen-lockfile
+rm -rf "$PROJECT_DIR/backend/cmd/mini-ubuntu-server/web/assets" "$PROJECT_DIR/backend/cmd/mini-ubuntu-server/web/index.html"
 bun run check
 
 rm -rf "$PACKAGE_DIR"
