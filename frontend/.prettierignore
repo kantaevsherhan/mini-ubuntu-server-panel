@@ -1,0 +1,4 @@
+node_modules
+dist
+../backend/cmd/mini-ubuntu-server/web
+bun.lock

@@ -13,9 +13,15 @@ jobs:
         with: { go-version: "1.23.x" }
       - run: bun install --frozen-lockfile
         working-directory: frontend
-      - run: bun run build
+      - run: bun run check
         working-directory: frontend
+      - name: Check gofmt
+        run: test -z "$(gofmt -l backend)"
       - run: go test ./...
         working-directory: backend
       - run: go vet ./...
         working-directory: backend
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62.2
+          working-directory: backend
