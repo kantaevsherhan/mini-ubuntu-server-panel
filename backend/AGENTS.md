@@ -6,7 +6,8 @@ These rules apply to all files under `backend/`.
 
 - Use Go and Fiber for HTTP and WebSocket endpoints.
 - Keep handlers thin. Put domain logic in focused packages under `internal/`.
-- Use SQLite through parameterized queries. Never build SQL from untrusted strings.
+- Use GORM with the pure-Go SQLite driver for all runtime data access. Keep models and reusable repository queries in `internal/database`; handlers must not use `database/sql` or handwritten runtime SQL.
+- Raw SQL is allowed only in versioned `internal/database/migrations/*.sql` files and the isolated migration executor. Never build SQL from untrusted strings.
 - Keep migrations deterministic and backward-compatible. Updates must back up SQLite before migration.
 - Return stable machine-readable API error codes; do not expose internal errors or secrets.
 - Pass `context.Context` through slow I/O, Docker, Telegram, and system operations.

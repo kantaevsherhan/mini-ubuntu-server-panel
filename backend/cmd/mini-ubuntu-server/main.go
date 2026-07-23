@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"embed"
 	"flag"
 	"fmt"
@@ -24,6 +23,8 @@ import (
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/database"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/httpapi"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/metrics"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/notifications"
+	"gorm.io/gorm"
 )
 
 var version = "dev"
@@ -48,9 +49,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer sqlDB.Close()
 	bootstrap(db)
 	go metrics.NewCollector(db, time.Minute).Start(context.Background())
+	go notifications.New(db, notifications.TelegramSender{DB: db}).Run(context.Background())
 
 	app := fiber.New(fiber.Config{
 		AppName:               "Mini Ubuntu Server Panel",
@@ -139,9 +145,9 @@ func staticFrontend(root fs.FS) fiber.Handler {
 	}
 }
 
-func bootstrap(db *sql.DB) {
-	var count int
-	if err := db.QueryRow(`SELECT count(*) FROM users`).Scan(&count); err != nil || count > 0 {
+func bootstrap(db *gorm.DB) {
+	var count int64
+	if err := db.Model(&database.User{}).Count(&count).Error; err != nil || count > 0 {
 		return
 	}
 	username := os.Getenv("MINI_UBUNTU_SERVER_BOOTSTRAP_USERNAME")
@@ -154,9 +160,8 @@ func bootstrap(db *sql.DB) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	now := time.Now().UTC()
-	_, err = db.Exec(`INSERT INTO users(username,display_name,password_hash,role,is_active,must_change_password,created_at,updated_at) VALUES(?,?,?,'admin',1,1,?,?)`, username, "Administrator", hash, now, now)
-	if err != nil {
+	user := database.User{Username: username, DisplayName: "Administrator", PasswordHash: hash, Role: "admin", IsActive: true, MustChangePassword: true}
+	if err := db.Create(&user).Error; err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("bootstrap administrator %q created; password is not logged", username)

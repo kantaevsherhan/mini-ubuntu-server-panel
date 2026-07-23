@@ -23,16 +23,18 @@ func TestMigrationsAreAppliedOnce(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var count int
-		if err := db.QueryRow(`SELECT count(*) FROM schema_migrations`).Scan(&count); err != nil {
-			db.Close()
+		var count int64
+		if err := db.Model(&SchemaMigration{}).Count(&count).Error; err != nil {
 			t.Fatal(err)
 		}
-		if count != expected {
-			db.Close()
+		if count != int64(expected) {
 			t.Fatalf("expected %d applied migrations, got %d", expected, count)
 		}
-		if err := db.Close(); err != nil {
+		sqlDB, err := db.DB()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := sqlDB.Close(); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -43,9 +45,13 @@ func TestForeignKeysAreEnabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
 	var enabled int
-	if err := db.QueryRow(`PRAGMA foreign_keys`).Scan(&enabled); err != nil {
+	if err := db.Raw(`PRAGMA foreign_keys`).Scan(&enabled).Error; err != nil {
 		t.Fatal(err)
 	}
 	if enabled != 1 {

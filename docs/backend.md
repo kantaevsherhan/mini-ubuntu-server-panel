@@ -29,9 +29,9 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 
 Ответы об ошибках содержат стабильное поле `error` и не раскрывают внутреннее сообщение Go/SQLite.
 
-## SQLite
+## SQLite и ORM
 
-SQLite работает в WAL mode, с foreign keys и одним writer connection. SQL-запросы параметризованы. Миграции сейчас выполняются идемпотентной схемой при старте; перед стабильным релизом их нужно перевести на версионированные файлы.
+Runtime data access использует GORM и pure-Go SQLite driver `github.com/glebarez/sqlite`, поэтому release сохраняет `CGO_ENABLED=0`. SQLite работает в WAL mode, с foreign keys, prepared statements и одним writer connection. Raw SQL разрешён только в embedded versioned migration-файлах.
 
 Collector раз в минуту читает aggregate CPU counters из `/proc/stat` и `MemTotal`/`MemAvailable` из `/proc/meminfo`. Исторический API группирует точки на стороне SQLite и ограничивает ответ 1000 точками.
 

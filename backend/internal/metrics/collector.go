@@ -3,17 +3,19 @@ package metrics
 import (
 	"bufio"
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/database"
+	"gorm.io/gorm"
 )
 
 type Collector struct {
-	db        *sql.DB
+	db        *gorm.DB
 	interval  time.Duration
 	previous  cpuTimes
 	hasSample bool
@@ -24,7 +26,7 @@ type cpuTimes struct {
 	idle  uint64
 }
 
-func NewCollector(db *sql.DB, interval time.Duration) *Collector {
+func NewCollector(db *gorm.DB, interval time.Duration) *Collector {
 	return &Collector{db: db, interval: interval}
 }
 
@@ -63,8 +65,8 @@ func (c *Collector) collect(ctx context.Context) error {
 		return errors.New("invalid CPU counters")
 	}
 	cpuPercent := float64(totalDelta-idleDelta) / float64(totalDelta) * 100
-	_, err = c.db.ExecContext(ctx, `INSERT INTO metric_samples(sampled_at,cpu_percent,memory_percent,memory_used_bytes,memory_total_bytes) VALUES(?,?,?,?,?)`, time.Now().UTC(), cpuPercent, memoryPercent, used, total)
-	return err
+	sample := database.MetricSample{SampledAt: time.Now().UTC(), CPUPercent: cpuPercent, MemoryPercent: memoryPercent, MemoryUsedBytes: used, MemoryTotalBytes: total}
+	return c.db.WithContext(ctx).Create(&sample).Error
 }
 
 func readCPU() (cpuTimes, error) {

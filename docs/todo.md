@@ -18,6 +18,7 @@
 - [x] SHA-256 release verification и update backup/rollback для binary.
 - [x] GitHub Actions для amd64/arm64 releases.
 - [x] Централизованный PrimeVue Toast для API и network errors.
+- [x] GORM ORM с pure-Go SQLite driver вместо runtime raw SQL.
 
 ## В работе / следующий приоритет
 
@@ -27,7 +28,8 @@
 - [ ] Связь `system_username`, группы, sudo, SSH keys и sessions.
 - [x] Telegram getMe/getUpdates/sendMessage, SSRF-safe transport и recipients UI.
 - [ ] Привилегированное изменение Telegram Bot Token через CLI helper без передачи token в argv, лог или SQLite.
-- [ ] Notification worker с retry, exponential backoff, dedup, cooldown и recovery.
+- [x] Notification queue worker с delivery status, retry, exponential backoff и dedup.
+- [ ] Notification rules UI: per-event severity, recipients, cooldown, repeat interval и recovery notifications.
 - [ ] Docker SDK, systemd, firewall, processes, logs, files и terminal modules.
 - [ ] WebSocket authentication, origin validation и rate limits.
 - [ ] Settings sections и RBAC-aware navigation.

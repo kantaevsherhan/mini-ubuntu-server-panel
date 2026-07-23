@@ -1,34 +1,42 @@
 package database
 
 import (
-	"database/sql"
 	"embed"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
-func Open(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)")
+func Open(path string) (*gorm.DB, error) {
+	db, err := gorm.Open(sqlite.Open(path+"?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)"), &gorm.Config{
+		PrepareStmt: true,
+		Logger:      logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(1)
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+	sqlDB.SetMaxOpenConns(1)
 	if err = migrate(db); err != nil {
-		db.Close()
+		sqlDB.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return db, nil
 }
 
-func migrate(db *sql.DB) error {
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at DATETIME NOT NULL)`); err != nil {
+func migrate(db *gorm.DB) error {
+	if err := db.AutoMigrate(&SchemaMigration{}); err != nil {
 		return err
 	}
 	entries, err := migrationFiles.ReadDir("migrations")
@@ -43,36 +51,36 @@ func migrate(db *sql.DB) error {
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		var applied bool
-		if err := db.QueryRow(`SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=?)`, name).Scan(&applied); err != nil {
+		var count int64
+		if err := db.Model(&SchemaMigration{}).Where("version = ?", name).Count(&count).Error; err != nil {
 			return err
 		}
-		if applied {
+		if count > 0 {
 			continue
 		}
 		script, err := migrationFiles.ReadFile("migrations/" + name)
 		if err != nil {
 			return err
 		}
-		tx, err := db.Begin()
-		if err != nil {
-			return err
-		}
-		if _, err = tx.Exec(string(script)); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("%s: %w", name, err)
-		}
-		if _, err = tx.Exec(`INSERT INTO schema_migrations(version,applied_at) VALUES(?,?)`, name, time.Now().UTC()); err != nil {
-			tx.Rollback()
-			return err
-		}
-		if err = tx.Commit(); err != nil {
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Exec(string(script)).Error; err != nil {
+				return fmt.Errorf("%s: %w", name, err)
+			}
+			return tx.Create(&SchemaMigration{Version: name, AppliedAt: time.Now().UTC()}).Error
+		}); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func Audit(db *sql.DB, actor any, action, target, targetID, details, ip string) {
-	_, _ = db.Exec(`INSERT INTO audit_events(actor_user_id,action,target_type,target_id,details_json,ip_address,created_at) VALUES(?,?,?,?,?,?,?)`, actor, action, target, targetID, details, ip, time.Now().UTC())
+func Audit(db *gorm.DB, actor any, action, target, targetID, details, ip string) {
+	event := AuditEvent{Action: action, TargetType: target, DetailsJSON: details, IPAddress: ip, CreatedAt: time.Now().UTC()}
+	if value, ok := actor.(int64); ok {
+		event.ActorUserID = &value
+	}
+	if targetID != "" {
+		event.TargetID = &targetID
+	}
+	_ = db.Create(&event).Error
 }
