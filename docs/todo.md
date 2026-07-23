@@ -21,7 +21,7 @@
 ## В работе / следующий приоритет
 
 - [x] Исторические CPU/RAM метрики: SQLite samples, `/proc` collector, range API и ECharts день/неделя/месяц/всё время.
-- [ ] Полный CRUD panel users и обязательная смена временного пароля.
+- [x] Полный CRUD panel users, web sessions и обязательная смена временного пароля.
 - [ ] Транзакционное создание panel + Ubuntu user с compensating rollback.
 - [ ] Связь `system_username`, группы, sudo, SSH keys и sessions.
 - [ ] Telegram token management, getMe/getUpdates/sendMessage и recipients UI.
@@ -38,7 +38,6 @@
 - `scripts/update.sh` health-check пока использует порт `8080`, а не читает значение из config.
 - Rollback update восстанавливает binary, но не восстанавливает несовместимую SQLite migration.
 - Installer использует GitHub API без authenticated token и может попасть под rate limit.
-- Bootstrap admin удаляется из `secrets.env` после health-check, но обязательная смена пароля ещё не реализована endpoint/UI.
 - JWT находится в `sessionStorage`; XSS всё ещё может прочитать его. Нужны HttpOnly cookie sessions.
 - Login limiter хранится в памяти и сбрасывается после рестарта.
 - Audit login failures может расти при распределённой атаке; нужна retention/aggregation policy.
