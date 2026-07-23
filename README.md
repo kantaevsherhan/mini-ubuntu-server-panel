@@ -1,21 +1,58 @@
 # Mini Ubuntu Server Panel
 
-Тёмная desktop-first панель управления Ubuntu Server. Backend написан на Go и Fiber, frontend — Vue 3, TypeScript, PrimeVue 4 и Tailwind CSS. Интерфейс использует PrimeIcons, штатные темы Aura/Lara и поддерживает русский и английский языки.
+Mini Ubuntu Server Panel — web-панель управления Ubuntu Server с backend на Go/Fiber и frontend на Vue 3. Проект ориентирован на Ubuntu 24.04, тёмный desktop-first интерфейс и установку из GitHub Releases.
 
-> Проект находится в активной разработке. Авторизация, SQLite-схема, dashboard, пользователи панели, чтение Ubuntu-пользователей, базовые настройки Telegram, аудит и UI-каркас уже заложены. Docker, terminal, files, firewall, updater и notification worker пока представлены точками расширения.
+Проект находится в активной разработке. Готов фундамент авторизации, SQLite, аудита, пользователей панели, чтения Ubuntu-пользователей, Telegram-настроек, dashboard и production-упаковки. Docker, terminal, files, firewall, updater worker и полноценная очередь уведомлений развиваются поэтапно.
 
-## Стек
+## Имена проекта
 
-- Go 1.23, Fiber 2, REST API, JWT и SQLite (`modernc.org/sqlite`, без CGO);
+| Назначение | Имя |
+|---|---|
+| GitHub-репозиторий | `mini-ubuntu-server-panel` |
+| CLI и бинарный файл | `mini-ubuntu-server` |
+| systemd service | `mini-ubuntu-server.service` |
+
+GitHub: `https://github.com/kantaevsherhan/mini-ubuntu-server-panel`.
+
+## Технологии
+
+Backend:
+
+- Go 1.23 и Fiber 2;
+- REST API, JWT и bcrypt;
+- SQLite без CGO;
+- Linux `/proc`, `/sys` и системные API;
+- systemd и ограниченный sudoers.
+
+Frontend:
+
 - Vue 3, Vite, TypeScript, Vue Router и Pinia;
-- PrimeVue 4, `@primeuix/themes` (Aura/Lara), PrimeIcons и Tailwind CSS;
-- Bun для установки зависимостей и сборки frontend;
-- ECharts, xterm.js и Monaco Editor подготовлены как frontend-зависимости;
-- systemd и ограниченный sudoers для Ubuntu.
+- PrimeVue 4 и готовые компоненты PrimeVue;
+- PrimeIcons для всех интерфейсных иконок;
+- `@primeuix/themes` с Aura и Lara;
+- Tailwind CSS только для layout и utility-классов;
+- Moment.js для локализованного отображения даты и времени;
+- Bun для зависимостей, проверок и сборки;
+- ECharts, xterm.js и Monaco Editor для профильных модулей.
 
-## Быстрый старт для разработки
+## Интерфейс
+
+Интерфейс использует готовые PrimeVue-компоненты. Layout построен на `Menubar`, `PanelMenu`, `Splitter` и `SplitterPanel`; формы используют `Fluid`, `FloatLabel`, `InputText`, `Password`, `Select` и `Button`; данные отображаются через `DataTable`, `Tag`, `ProgressBar`, `Skeleton`, `Toast` и `ConfirmDialog`.
+
+В `Настройки → Интерфейс` доступны:
+
+- Aura или Lara;
+- dark или light режим;
+- accent color;
+- русский или английский язык.
+
+Настройки интерфейса сохраняются в `localStorage`. Даты на русском отображаются как `DD.MM.YYYY HH:mm`, на английском — как `MM/DD/YYYY h:mm A`.
+
+## Локальная разработка
 
 Требуются Go 1.23+ и Bun 1.3+.
+
+Frontend:
 
 ```bash
 cd frontend
@@ -23,7 +60,7 @@ bun install
 bun run dev
 ```
 
-В другом терминале:
+Backend:
 
 ```bash
 export MINI_UBUNTU_SERVER_JWT_SECRET="$(openssl rand -hex 32)"
@@ -33,63 +70,123 @@ cd backend
 go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 ```
 
-Vite проксирует `/api` на `127.0.0.1:8080`. Первый администратор создаётся только в пустой базе и получает флаг обязательной смены пароля. Пароль никогда не выводится backend в лог.
+Vite проксирует `/api` на `127.0.0.1:8080`. Первый администратор создаётся только для пустой базы. Backend не выводит пароль в лог.
 
-Production-сборка с frontend внутри Go binary:
+Production-сборка, встраивающая frontend в Go binary:
 
 ```bash
 make build VERSION=v0.1.0
 ```
 
+## Форматирование и проверки
+
+После каждого изменения frontend обязательно запускаются форматирование, ESLint, TypeScript и production build:
+
+```bash
+cd frontend
+bun run format
+bun run check
+```
+
+Для Go используются `gofmt`, `go test`, `go vet` и `golangci-lint`. Полная проверка репозитория:
+
+```bash
+make check
+```
+
+Такие же проверки запускаются в GitHub Actions при push и pull request.
+
+## Скрипты
+
+Все рабочие скрипты находятся только в `scripts/`:
+
+| Файл | Назначение |
+|---|---|
+| `scripts/install.sh` | установка из GitHub Release и проверка SHA-256 |
+| `scripts/update.sh` | backup, обновление, health-check и rollback |
+| `scripts/uninstall.sh` | интерактивное безопасное удаление |
+| `scripts/release.sh` | проверка и сборка архивов amd64/arm64 |
+
 ## Установка
 
-После замены `OWNER` на владельца публичного GitHub-репозитория:
+Одна команда:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OWNER/mini-ubuntu-server-panel/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/kantaevsherhan/mini-ubuntu-server-panel/main/scripts/install.sh | sudo bash
 ```
 
-Определённая версия и параметры:
+Определённая версия:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OWNER/mini-ubuntu-server-panel/main/install.sh \
-  | sudo bash -s -- --version v1.0.0 --port 8080 --username admin
+curl -fsSL https://raw.githubusercontent.com/kantaevsherhan/mini-ubuntu-server-panel/main/scripts/install.sh \
+  | sudo bash -s -- --version v1.0.0
 ```
 
-Более безопасный вариант — сначала проверить скрипт:
+Дополнительные параметры:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OWNER/mini-ubuntu-server-panel/main/install.sh -o install.sh
+sudo bash scripts/install.sh --port 8080 --username admin --data-dir /var/lib/mini-ubuntu-server
+```
+
+Более безопасный способ:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kantaevsherhan/mini-ubuntu-server-panel/main/scripts/install.sh -o install.sh
 less install.sh
 sudo bash install.sh
 rm install.sh
 ```
 
-Установщик поддерживает Ubuntu `amd64`/`arm64`, проверяет SHA-256 релизного архива, создаёт отдельного пользователя, конфигурацию, секреты и включает `mini-ubuntu-server.service`. После успешного health-check bootstrap-переменные удаляются из `secrets.env`; в SQLite остаётся только bcrypt-хеш временного пароля.
+Установщик поддерживает Ubuntu `amd64` и `arm64`, сверяет SHA-256, создаёт системного пользователя, конфигурацию, секреты и включает `mini-ubuntu-server.service`. Временный пароль показывается один раз. После health-check bootstrap-переменные удаляются из `secrets.env`, а в SQLite остаётся только bcrypt-хеш.
 
 ## Управление сервисом
 
 ```bash
 sudo systemctl status mini-ubuntu-server
 sudo systemctl restart mini-ubuntu-server
+sudo systemctl stop mini-ubuntu-server
 sudo journalctl -u mini-ubuntu-server -f
 ```
 
-Данные находятся в `/var/lib/mini-ubuntu-server`, конфигурация — в `/etc/mini-ubuntu-server`, бинарный файл — `/opt/mini-ubuntu-server/bin/mini-ubuntu-server`.
+Основные пути:
 
-## Темы и языки
+- `/opt/mini-ubuntu-server/bin/mini-ubuntu-server`;
+- `/etc/mini-ubuntu-server/config.yml`;
+- `/etc/mini-ubuntu-server/secrets.env`;
+- `/var/lib/mini-ubuntu-server/mini-ubuntu-server.db`;
+- `/var/lib/mini-ubuntu-server/backups`;
+- `/var/log/mini-ubuntu-server`.
 
-В `Настройки → Интерфейс` можно переключать Aura/Lara, dark/light, accent color и RU/EN. Выбор хранится только в браузере в `localStorage`. Для всех действий интерфейса используются классы PrimeIcons `pi pi-*`.
+## Обновление и удаление
+
+```bash
+sudo bash scripts/update.sh v1.1.0
+sudo bash scripts/uninstall.sh
+```
+
+Обновление проверяет checksum, создаёт резервную копию бинарного файла и SQLite, перезапускает сервис и выполняет health-check. При ошибке восстанавливается предыдущий бинарный файл. Uninstall по умолчанию сохраняет данные, пока пользователь явно не подтвердит их удаление.
 
 ## Безопасность
 
-- пользователи панели отделены от пользователей `/etc/passwd`;
-- пароль панели хранится как bcrypt-хеш, Ubuntu-пароли не читаются;
-- JWT подписывается секретом из `/etc/mini-ubuntu-server/secrets.env` с правами `0640`;
-- Telegram Bot Token должен передаваться через `MINI_UBUNTU_SERVER_TELEGRAM_BOT_TOKEN` и не хранится открытым текстом в SQLite;
-- административные операции фиксируются в `audit_events`, секреты маскируются;
-- системный сервис использует systemd hardening.
+- пользователи панели отделены от Ubuntu-пользователей;
+- Ubuntu-пароли и `/etc/shadow` не сохраняются в SQLite;
+- пароли панели хранятся как bcrypt-хеши;
+- JWT и Telegram Bot Token передаются через защищённый `secrets.env`;
+- секреты маскируются в логах и аудите;
+- роли `admin`, `operator`, `viewer` проверяются backend;
+- привилегированные операции ограничиваются sudoers и записываются в аудит;
+- systemd unit использует hardening-параметры.
+
+## Структура
+
+```text
+backend/    Go/Fiber API, доменные пакеты и SQLite
+frontend/   Vue 3, PrimeVue 4 и Tailwind CSS
+packaging/  systemd, sudoers и пример конфигурации
+scripts/    install, update, uninstall и release
+.github/    CI и GitHub Release workflows
+```
 
 ## Лицензия
 
-Добавьте выбранный файл лицензии перед публичным релизом.
+Перед публичным релизом добавьте выбранный файл `LICENSE`.

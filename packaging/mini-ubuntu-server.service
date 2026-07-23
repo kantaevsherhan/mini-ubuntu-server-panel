@@ -1,6 +1,6 @@
 [Unit]
 Description=Mini Ubuntu Server Panel
-Documentation=https://github.com/OWNER/mini-ubuntu-server-panel
+Documentation=https://github.com/kantaevsherhan/mini-ubuntu-server-panel
 After=network-online.target docker.service
 Wants=network-online.target
 
