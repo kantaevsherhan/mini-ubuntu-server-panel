@@ -21,6 +21,8 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 | GET | `/me` | authenticated |
 | GET | `/dashboard` | authenticated |
 | GET | `/metrics/history?range=day|week|month|all` | authenticated |
+| GET | `/settings/overview` | admin/operator |
+| GET | `/updates` | admin |
 | GET | `/processes` | authenticated |
 | POST | `/processes/:pid/signal` | admin/operator |
 | GET | `/services` | admin/operator |
@@ -50,6 +52,8 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 | GET | `/audit` | admin |
 
 Ответы об ошибках содержат стабильное поле `error` и не раскрывают внутреннее сообщение Go/SQLite.
+
+Settings overview возвращает только операционный read-only snapshot: hostname/version/runtime, каталоги из уже загруженного config, размер SQLite и агрегированные counts. Admin-only update checker обращается к фиксированному GitHub Releases API URL с timeout и bounded response, принимает только version tag и release URL ожидаемого репозитория; произвольный URL от браузера backend не принимает.
 
 HTTP слой разделён по предметным файлам: `auth_handlers.go`, `dashboard_handlers.go`, `user_handlers.go`, `telegram_handlers.go`, `notification_rules.go`, `process_handlers.go` и `audit_handlers.go`. `api.go` содержит только dependency wiring, routes и health-check; новые модули не должны возвращать обработчики в единый большой файл.
 

@@ -33,6 +33,7 @@ import (
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/services"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/systemusers"
 	terminalmanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/terminal"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/updater"
 	"gorm.io/gorm"
 )
 
@@ -172,7 +173,7 @@ func main() {
 	}))
 	app.Use(compress.New())
 
-	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Docker: dockerManager, Firewall: firewallManager, Logs: logManager, Files: filesManager, Terminal: terminalManager, Secret: cfg.JWTSecret, Version: version}.Register(app)
+	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Docker: dockerManager, Firewall: firewallManager, Logs: logManager, Files: filesManager, Terminal: terminalManager, Updates: updater.NewHTTPChecker(), Secret: cfg.JWTSecret, Version: version, DataDir: cfg.DataDir, LogDir: cfg.LogDir}.Register(app)
 	root, err := fs.Sub(web, "web")
 	if err != nil {
 		log.Fatal(err)

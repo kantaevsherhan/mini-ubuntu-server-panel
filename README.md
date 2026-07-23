@@ -20,6 +20,8 @@ Dashboard сохраняет минутные CPU/RAM samples из Linux `/proc`
 
 Web-терминал использует xterm.js и непривилегированный PTY системного пользователя `mini-ubuntu-server`. JWT не передаётся в WebSocket URL: frontend запрашивает одноразовый 30-секундный ticket и передаёт его в `Sec-WebSocket-Protocol`. Backend проверяет same-origin, IP, RBAC, размер и частоту сообщений, ограничивает число и длительность сессий и не записывает команды в аудит.
 
+Settings объединяет 14 продуктовых разделов в RBAC-filtered PrimeVue Tabs. Операционные значения читаются через отдельный overview API, а admin может безопасно проверить последнюю стабильную версию через фиксированный GitHub Releases endpoint; URL из браузера backend не принимает.
+
 ## Имена проекта
 
 | Назначение | Имя |

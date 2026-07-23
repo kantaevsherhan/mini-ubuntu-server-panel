@@ -17,6 +17,7 @@ import (
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/services"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/systemusers"
 	terminalmanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/terminal"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/updater"
 	"gorm.io/gorm"
 )
 
@@ -34,8 +35,11 @@ type API struct {
 	Files       filemanager.Controller
 	Terminal    terminalmanager.Controller
 	Tickets     *terminalmanager.TicketStore
+	Updates     updater.Checker
 	Secret      string
 	Version     string
+	DataDir     string
+	LogDir      string
 }
 
 type loginRequest struct {
@@ -84,6 +88,8 @@ func (a API) Register(app *fiber.App) {
 	secured.Delete("/auth/sessions/:id", a.revokeSession)
 	secured.Get("/dashboard", a.dashboard)
 	secured.Get("/metrics/history", a.metricsHistory)
+	secured.Get("/settings/overview", a.requireRole("admin", "operator"), a.settingsOverview)
+	secured.Get("/updates", a.requireRole("admin"), a.updateStatus)
 	secured.Get("/processes", a.processList)
 	secured.Post("/processes/:pid/signal", a.requireRole("admin", "operator"), a.processSignal)
 	secured.Get("/services", a.requireRole("admin", "operator"), a.serviceList)

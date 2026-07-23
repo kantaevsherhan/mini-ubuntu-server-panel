@@ -38,7 +38,7 @@
 - [x] Notification rules UI: per-event severity, recipients, cooldown, repeat interval, recovery и delivery history.
 - [x] Terminal: unprivileged PTY, xterm.js, resizable/fullscreen workspace и start/end audit без command logging.
 - [x] WebSocket: short-lived single-use ticket in subprotocol header, IP/RBAC/origin validation, message/session rate and size limits.
-- [ ] Все Settings sections. RBAC-aware navigation, route guards, account identity и admin-only actions уже готовы.
+- [x] Все Settings sections: RBAC-filtered PrimeVue Tabs, runtime/storage overview, module links, security/backup guidance и admin-only GitHub Release checker.
 - [x] Добавить минимальные осмысленные micro-interactions: hover/focus для действий и ссылок, обратная связь выбора файла, мягкое раскрытие панелей и изменение статуса; поддержать `prefers-reduced-motion` и исключить декоративные тяжёлые анимации.
 - [x] Versioned embedded SQLite migrations with transactional application tests.
 - [ ] CLI subcommands `update` и `uninstall` внутри binary.
