@@ -23,6 +23,7 @@
 - Docker socket недоступен по умолчанию; opt-in `--enable-docker` документирован как root-equivalent доступ, container IDs/actions проверяются allowlist, remove не использует force и не удаляет volumes.
 - UFW changes проходят двойную allowlist-валидацию, не используют shell, доступны только admin и записываются в аудит; deny порта 22 и enable/disable через web запрещены.
 - Journald доступен только admin/operator через allowlist query и exact root-helper; объём ответа и размер сообщения ограничены, дополнительные journal fields отбрасываются.
+- File operations привязаны к root-owned `allowed_directories`, повторно проверяются root-helper, запрещают absolute/parent/symlink traversal, ограничивают объём и используют атомарную запись; file content не попадает в аудит.
 
 ## Обязательные меры для production
 

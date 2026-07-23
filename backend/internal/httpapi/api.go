@@ -9,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/database"
 	dockermanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/docker"
+	filemanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/files"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/firewall"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/logs"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/processes"
@@ -29,6 +30,7 @@ type API struct {
 	Docker      dockermanager.Controller
 	Firewall    firewall.Controller
 	Logs        logs.Controller
+	Files       filemanager.Controller
 	Secret      string
 	Version     string
 }
@@ -85,6 +87,13 @@ func (a API) Register(app *fiber.App) {
 	secured.Post("/firewall/rules", a.requireRole("admin"), a.firewallAddRule)
 	secured.Delete("/firewall/rules/:number", a.requireRole("admin"), a.firewallDeleteRule)
 	secured.Get("/logs", a.requireRole("admin", "operator"), a.logsList)
+	secured.Get("/files/roots", a.requireRole("admin", "operator"), a.fileRoots)
+	secured.Get("/files", a.requireRole("admin", "operator"), a.fileList)
+	secured.Get("/files/content", a.requireRole("admin", "operator"), a.fileRead)
+	secured.Put("/files/content", a.requireRole("admin", "operator"), a.fileWrite)
+	secured.Post("/files/directories", a.requireRole("admin", "operator"), a.fileMkdir)
+	secured.Post("/files/upload", a.requireRole("admin", "operator"), a.fileUpload)
+	secured.Delete("/files", a.requireRole("admin", "operator"), a.fileDelete)
 	secured.Get("/users", a.requireRole("admin", "operator"), a.users)
 	secured.Post("/users", a.requireRole("admin"), a.createUser)
 	secured.Patch("/users/:id", a.requireRole("admin"), a.updateUser)

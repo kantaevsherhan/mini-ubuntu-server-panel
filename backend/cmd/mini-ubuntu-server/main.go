@@ -22,6 +22,7 @@ import (
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/config"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/database"
 	dockermanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/docker"
+	filemanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/files"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/firewall"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/httpapi"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/logs"
@@ -76,6 +77,12 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) == 2 && os.Args[1] == "privileged-files" {
+		if err := filemanager.RunPrivileged(os.Stdin, os.Stdout, filemanager.DefaultConfigPath); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	configPath := flag.String("config", "/etc/mini-ubuntu-server/config.yml", "configuration file")
 	showVersion := flag.Bool("version", false, "print version")
 	flag.Parse()
@@ -126,12 +133,16 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	filesManager, err := filemanager.NewManager(cfg.AllowedDirectories)
+	if err != nil {
+		log.Fatal(err)
+	}
 	go metrics.NewCollector(db, time.Minute).Start(context.Background())
 	go notifications.New(db, notifications.TelegramSender{DB: db}).Run(context.Background())
 
 	app := fiber.New(fiber.Config{
 		AppName:               "Mini Ubuntu Server Panel",
-		BodyLimit:             1 * 1024 * 1024,
+		BodyLimit:             3 * 1024 * 1024,
 		ReadTimeout:           15 * time.Second,
 		WriteTimeout:          30 * time.Second,
 		IdleTimeout:           60 * time.Second,
@@ -156,7 +167,7 @@ func main() {
 	}))
 	app.Use(compress.New())
 
-	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Docker: dockerManager, Firewall: firewallManager, Logs: logManager, Secret: cfg.JWTSecret, Version: version}.Register(app)
+	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Docker: dockerManager, Firewall: firewallManager, Logs: logManager, Files: filesManager, Secret: cfg.JWTSecret, Version: version}.Register(app)
 	root, err := fs.Sub(web, "web")
 	if err != nil {
 		log.Fatal(err)

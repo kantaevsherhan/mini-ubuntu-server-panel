@@ -31,6 +31,12 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 | POST | `/firewall/rules` | admin |
 | DELETE | `/firewall/rules/:number` | admin |
 | GET | `/logs?unit=&priority=&range=hour|day|week&limit=` | admin/operator |
+| GET | `/files/roots` | admin/operator |
+| GET | `/files?root=&path=` | admin/operator |
+| GET/PUT | `/files/content` | admin/operator |
+| POST | `/files/directories` | admin/operator |
+| POST | `/files/upload` | admin/operator |
+| DELETE | `/files?root=&path=` | admin/operator |
 | GET | `/users` | authenticated |
 | POST | `/users` | admin |
 | GET | `/system-users` | admin/operator |
@@ -73,6 +79,8 @@ Docker adapter использует поддерживаемые модули `g
 UFW adapter работает только через exact sudoers subcommand `privileged-firewall`. JSON повторно валидируется после root-перехода; разрешены status, добавление inbound `allow`/`deny` для одного TCP/UDP-порта и удаление numbered rule. Source принимает только `any`, IP или CIDR. Deny порта 22, enable/disable/reset и произвольные UFW arguments запрещены. Команды запускаются без shell, изменения доступны только admin и пишутся в аудит.
 
 Journald adapter вызывает exact subcommand `privileged-logs`. Unit принимает только корректное имя `.service`, priority и временной диапазон выбираются из allowlist, limit ограничен 1–2000. Root-helper формирует фиксированный массив аргументов `journalctl` без shell, читает JSON lines, пропускает некорректные записи и обрезает каждое сообщение до 8 KiB. В API не возвращаются произвольные journal fields.
+
+Files adapter получает список `allowed_directories` из `config.yml`, а exact `privileged-files` повторно читает тот же root-owned production config после sudo-перехода. Клиент передаёт только индекс корня и относительный путь. Абсолютные пути, `..`, filesystem root, NUL, symlink в любом компоненте и более 5000 записей каталога запрещены. Read/write/upload работают только с UTF-8 text до 2 MiB; запись атомарная с сохранением mode/owner, delete не рекурсивный. Все изменения пишутся в аудит без содержимого файла.
 
 ## Очередь уведомлений
 
