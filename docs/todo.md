@@ -25,7 +25,8 @@
 - [x] Полный CRUD panel users, web sessions и обязательная смена временного пароля.
 - [ ] Транзакционное создание panel + Ubuntu user с compensating rollback.
 - [ ] Связь `system_username`, группы, sudo, SSH keys и sessions.
-- [ ] Telegram token management, getMe/getUpdates/sendMessage и recipients UI.
+- [x] Telegram getMe/getUpdates/sendMessage, SSRF-safe transport и recipients UI.
+- [ ] Привилегированное изменение Telegram Bot Token через CLI helper без передачи token в argv, лог или SQLite.
 - [ ] Notification worker с retry, exponential backoff, dedup, cooldown и recovery.
 - [ ] Docker SDK, systemd, firewall, processes, logs, files и terminal modules.
 - [ ] WebSocket authentication, origin validation и rate limits.
