@@ -2,7 +2,7 @@
 
 Mini Ubuntu Server Panel — web-панель управления Ubuntu Server с backend на Go/Fiber и frontend на Vue 3. Проект ориентирован на Ubuntu 24.04, тёмный desktop-first интерфейс и установку из GitHub Releases.
 
-Проект находится в активной разработке. Готов фундамент авторизации, SQLite, аудита, транзакционного создания panel/Ubuntu-пользователей, Telegram-настроек, очереди и правил уведомлений, dashboard, управление Linux-процессами, systemd-сервисами и Docker-контейнерами и production-упаковка. Terminal, files, firewall и updater worker развиваются поэтапно.
+Проект находится в активной разработке. Готов фундамент авторизации, SQLite, аудита, транзакционного создания panel/Ubuntu-пользователей, Telegram-настроек, очереди и правил уведомлений, dashboard, управление Linux-процессами, systemd-сервисами, Docker-контейнерами и UFW и production-упаковка. Terminal, files и updater worker развиваются поэтапно.
 
 Dashboard сохраняет минутные CPU/RAM samples из Linux `/proc` в SQLite и показывает ECharts-график за день, неделю, месяц или всё время с серверным downsampling.
 
@@ -11,6 +11,8 @@ Dashboard сохраняет минутные CPU/RAM samples из Linux `/proc`
 Раздел «Сервисы» показывает загруженные и установленные systemd unit files. Admin/operator могут выполнять `start`, `stop`, `restart`, `enable` и `disable`; собственный `mini-ubuntu-server.service` защищён от этих действий через API.
 
 Раздел Docker использует актуальный Moby Go SDK с API negotiation, показывает все контейнеры и разрешает admin/operator выполнить `start`, `stop`, `restart` и безопасное удаление остановленного контейнера без volumes/force.
+
+Раздел Firewall показывает numbered UFW rules. Operator имеет read-only доступ, admin может добавить строго валидированное inbound `allow`/`deny` правило или удалить правило после подтверждения. Web API не включает и не выключает UFW, а deny стандартного SSH-порта 22 заблокирован.
 
 ## Имена проекта
 

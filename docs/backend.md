@@ -27,6 +27,9 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 | POST | `/services/:unit/action` | admin/operator |
 | GET | `/docker/containers` | admin/operator |
 | POST | `/docker/containers/:id/action` | admin/operator |
+| GET | `/firewall` | admin/operator |
+| POST | `/firewall/rules` | admin |
+| DELETE | `/firewall/rules/:number` | admin |
 | GET | `/users` | authenticated |
 | POST | `/users` | admin |
 | GET | `/system-users` | admin/operator |
@@ -65,6 +68,8 @@ Bot Token изменяется отдельным exact subcommand `privileged-s
 Systemd adapter объединяет `systemctl list-units` и `list-unit-files`, чтобы показать активные и неактивные установленные сервисы. Изменения выполняются exact subcommand `privileged-service`: unit name проверяется строгим шаблоном с обязательным `.service`, доступны только `start`, `stop`, `restart`, `enable`, `disable`, shell не используется. Собственный unit панели заблокирован, успешные действия записываются в аудит.
 
 Docker adapter использует поддерживаемые модули `github.com/moby/moby/client` и `github.com/moby/moby/api` с автоматическим согласованием Engine API. Endpoint возвращает все контейнеры, включая остановленные. Действия принимают только hex container ID длиной 12–64 и allowlist `start`, `stop`, `restart`, `remove`; remove никогда не использует `force` и не удаляет volumes. Все успешные изменения записываются в аудит.
+
+UFW adapter работает только через exact sudoers subcommand `privileged-firewall`. JSON повторно валидируется после root-перехода; разрешены status, добавление inbound `allow`/`deny` для одного TCP/UDP-порта и удаление numbered rule. Source принимает только `any`, IP или CIDR. Deny порта 22, enable/disable/reset и произвольные UFW arguments запрещены. Команды запускаются без shell, изменения доступны только admin и пишутся в аудит.
 
 ## Очередь уведомлений
 

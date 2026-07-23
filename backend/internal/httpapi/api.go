@@ -9,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/database"
 	dockermanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/docker"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/firewall"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/processes"
 	secretstore "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/secrets"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/services"
@@ -25,6 +26,7 @@ type API struct {
 	Processes   processes.Controller
 	Services    services.Controller
 	Docker      dockermanager.Controller
+	Firewall    firewall.Controller
 	Secret      string
 	Version     string
 }
@@ -77,6 +79,9 @@ func (a API) Register(app *fiber.App) {
 	secured.Post("/services/:unit/action", a.requireRole("admin", "operator"), a.serviceAction)
 	secured.Get("/docker/containers", a.requireRole("admin", "operator"), a.dockerContainers)
 	secured.Post("/docker/containers/:id/action", a.requireRole("admin", "operator"), a.dockerContainerAction)
+	secured.Get("/firewall", a.requireRole("admin", "operator"), a.firewallStatus)
+	secured.Post("/firewall/rules", a.requireRole("admin"), a.firewallAddRule)
+	secured.Delete("/firewall/rules/:number", a.requireRole("admin"), a.firewallDeleteRule)
 	secured.Get("/users", a.requireRole("admin", "operator"), a.users)
 	secured.Post("/users", a.requireRole("admin"), a.createUser)
 	secured.Patch("/users/:id", a.requireRole("admin"), a.updateUser)

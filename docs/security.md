@@ -21,6 +21,7 @@
 - `bun audit`, Go checks и CI;
 - systemd hardening и отдельный системный пользователь.
 - Docker socket недоступен по умолчанию; opt-in `--enable-docker` документирован как root-equivalent доступ, container IDs/actions проверяются allowlist, remove не использует force и не удаляет volumes.
+- UFW changes проходят двойную allowlist-валидацию, не используют shell, доступны только admin и записываются в аудит; deny порта 22 и enable/disable через web запрещены.
 
 ## Обязательные меры для production
 

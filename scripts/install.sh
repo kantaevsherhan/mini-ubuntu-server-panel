@@ -29,7 +29,7 @@ case "$(dpkg --print-architecture)" in
 esac
 
 apt-get update -qq
-apt-get install -y -qq ca-certificates curl openssl sudo tar
+apt-get install -y -qq ca-certificates curl openssl sudo tar ufw
 getent group mini-ubuntu-server >/dev/null || groupadd --system mini-ubuntu-server
 id mini-ubuntu-server >/dev/null 2>&1 || useradd --system --gid mini-ubuntu-server --home-dir "$DATA_DIR" --shell /usr/sbin/nologin mini-ubuntu-server
 if [[ "$ENABLE_DOCKER" -eq 1 ]]; then

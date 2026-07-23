@@ -176,6 +176,22 @@ const messages = {
     containerActionConfirm: 'Выполнить действие для контейнера',
     containerActionDone: 'Действие выполнено',
     remove: 'Удалить',
+    firewallHint:
+      'Входящие правила UFW. Включение и отключение firewall через web намеренно запрещено.',
+    addFirewallRule: 'Добавить правило',
+    destination: 'Назначение',
+    action: 'Действие',
+    direction: 'Направление',
+    source: 'Источник',
+    protocol: 'Протокол',
+    port: 'Порт',
+    sourceCIDR: 'Источник: any, IP или CIDR',
+    noFirewallRules: 'Правила отсутствуют',
+    firewallRuleAdded: 'Правило добавлено',
+    deleteFirewallRule: 'Удалить правило',
+    deleteFirewallRuleConfirm: 'Удалить правило UFW',
+    firewallSSHProtection:
+      'Deny для стандартного SSH-порта 22 запрещён для защиты удалённого доступа.',
   },
   en: {
     dashboard: 'Dashboard',
@@ -351,6 +367,22 @@ const messages = {
     containerActionConfirm: 'Perform action for container',
     containerActionDone: 'Action completed',
     remove: 'Remove',
+    firewallHint:
+      'Inbound UFW rules. Enabling or disabling the firewall through the web UI is intentionally prohibited.',
+    addFirewallRule: 'Add rule',
+    destination: 'Destination',
+    action: 'Action',
+    direction: 'Direction',
+    source: 'Source',
+    protocol: 'Protocol',
+    port: 'Port',
+    sourceCIDR: 'Source: any, IP, or CIDR',
+    noFirewallRules: 'No rules configured',
+    firewallRuleAdded: 'Rule added',
+    deleteFirewallRule: 'Delete rule',
+    deleteFirewallRuleConfirm: 'Delete UFW rule',
+    firewallSSHProtection:
+      'Deny rules for the default SSH port 22 are blocked to protect remote access.',
   },
 } as const
 
