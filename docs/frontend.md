@@ -42,3 +42,5 @@ bun audit
 `check` запускает Prettier check, ESLint без warnings, TypeScript и production build. Маршруты загружаются лениво для уменьшения начального bundle.
 
 Dashboard загружает ECharts модульно (`echarts/core`) и показывает CPU/RAM за день, неделю, месяц или всё время. Диапазон выбирается PrimeVue `SelectButton`, а даты оси форматируются Moment.js согласно выбранному языку.
+
+Страница процессов использует PrimeVue `DataTable`, `Column`, `InputText`, `Tag`, `Button` и глобальный `ConfirmDialog`. Таблица виртуализирована, даты запуска форматируются общим Moment.js formatter, а действия управления скрыты для viewer.

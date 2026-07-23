@@ -2,9 +2,11 @@
 
 Mini Ubuntu Server Panel — web-панель управления Ubuntu Server с backend на Go/Fiber и frontend на Vue 3. Проект ориентирован на Ubuntu 24.04, тёмный desktop-first интерфейс и установку из GitHub Releases.
 
-Проект находится в активной разработке. Готов фундамент авторизации, SQLite, аудита, транзакционного создания panel/Ubuntu-пользователей, Telegram-настроек, очереди и правил уведомлений, dashboard и production-упаковки. Docker, terminal, files, firewall и updater worker развиваются поэтапно.
+Проект находится в активной разработке. Готов фундамент авторизации, SQLite, аудита, транзакционного создания panel/Ubuntu-пользователей, Telegram-настроек, очереди и правил уведомлений, dashboard, просмотр и управление Linux-процессами и production-упаковка. Docker, terminal, files, firewall и updater worker развиваются поэтапно.
 
 Dashboard сохраняет минутные CPU/RAM samples из Linux `/proc` в SQLite и показывает ECharts-график за день, неделю, месяц или всё время с серверным downsampling.
+
+Раздел «Процессы» читает актуальные данные из `/proc`, поддерживает поиск и виртуальный скроллинг. Admin/operator могут после подтверждения отправить только allowlist-сигналы `HUP`, `TERM` или `KILL`; каждое действие записывается в аудит.
 
 ## Имена проекта
 

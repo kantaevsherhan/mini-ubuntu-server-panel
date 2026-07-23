@@ -10,6 +10,7 @@ const router = createRouter({
       component: () => import('../layouts/AppLayout.vue'),
       children: [
         { path: '', component: () => import('../pages/DashboardPage.vue') },
+        { path: 'processes', component: () => import('../pages/ProcessesPage.vue') },
         {
           path: 'users',
           component: () => import('../pages/UsersPage.vue'),

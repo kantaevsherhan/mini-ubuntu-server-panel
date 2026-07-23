@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/database"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/processes"
 	secretstore "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/secrets"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/systemusers"
 	"gorm.io/gorm"
@@ -19,6 +20,7 @@ type API struct {
 	DB          *gorm.DB
 	SystemUsers systemusers.Client
 	Secrets     secretstore.Writer
+	Processes   processes.Controller
 	Secret      string
 	Version     string
 }
@@ -65,6 +67,8 @@ func (a API) Register(app *fiber.App) {
 	secured.Delete("/auth/sessions/:id", a.revokeSession)
 	secured.Get("/dashboard", a.dashboard)
 	secured.Get("/metrics/history", a.metricsHistory)
+	secured.Get("/processes", a.processList)
+	secured.Post("/processes/:pid/signal", a.requireRole("admin", "operator"), a.processSignal)
 	secured.Get("/users", a.requireRole("admin", "operator"), a.users)
 	secured.Post("/users", a.requireRole("admin"), a.createUser)
 	secured.Patch("/users/:id", a.requireRole("admin"), a.updateUser)
