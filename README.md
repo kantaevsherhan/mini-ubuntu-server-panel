@@ -2,7 +2,7 @@
 
 Mini Ubuntu Server Panel — web-панель управления Ubuntu Server с backend на Go/Fiber и frontend на Vue 3. Проект ориентирован на Ubuntu 24.04, тёмный desktop-first интерфейс и установку из GitHub Releases.
 
-Проект находится в активной разработке. Готов фундамент авторизации, SQLite, аудита, пользователей панели, чтения Ubuntu-пользователей, Telegram-настроек, dashboard и production-упаковки. Docker, terminal, files, firewall, updater worker и полноценная очередь уведомлений развиваются поэтапно.
+Проект находится в активной разработке. Готов фундамент авторизации, SQLite, аудита, транзакционного создания panel/Ubuntu-пользователей, Telegram-настроек, очереди уведомлений, dashboard и production-упаковки. Docker, terminal, files, firewall и updater worker развиваются поэтапно.
 
 Dashboard сохраняет минутные CPU/RAM samples из Linux `/proc` в SQLite и показывает ECharts-график за день, неделю, месяц или всё время с серверным downsampling.
 
@@ -172,11 +172,13 @@ sudo bash scripts/uninstall.sh
 
 - пользователи панели отделены от Ubuntu-пользователей;
 - Ubuntu-пароли и `/etc/shadow` не сохраняются в SQLite;
+- совместное создание panel/Ubuntu-пользователя компенсирует уже созданную системную запись при ошибке SQLite;
 - пароли панели хранятся как bcrypt-хеши;
 - JWT и Telegram Bot Token передаются через защищённый `secrets.env`;
 - секреты маскируются в логах и аудите;
 - роли `admin`, `operator`, `viewer` проверяются backend;
-- привилегированные операции ограничиваются sudoers и записываются в аудит;
+- системные пользователи создаются через один root-helper с точным sudoers-правилом; параметры передаются JSON через stdin, валидируются и не интерпретируются shell;
+- привилегированные операции и изменения пользователей записываются в аудит;
 - systemd unit использует hardening-параметры.
 
 ## Структура

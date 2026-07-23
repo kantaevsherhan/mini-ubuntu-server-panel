@@ -24,9 +24,10 @@ import (
 var usernamePattern = regexp.MustCompile(`^[a-z_][a-z0-9_-]{2,31}$`)
 
 type API struct {
-	DB      *gorm.DB
-	Secret  string
-	Version string
+	DB          *gorm.DB
+	SystemUsers systemusers.Client
+	Secret      string
+	Version     string
 }
 
 type loginRequest struct {
@@ -35,11 +36,20 @@ type loginRequest struct {
 }
 
 type createUserRequest struct {
-	Username       string `json:"username"`
-	DisplayName    string `json:"display_name"`
-	Password       string `json:"password"`
-	Role           string `json:"role"`
-	SystemUsername string `json:"system_username"`
+	Username         string   `json:"username"`
+	DisplayName      string   `json:"display_name"`
+	Password         string   `json:"password"`
+	Role             string   `json:"role"`
+	SystemUsername   string   `json:"system_username"`
+	CreatePanelUser  *bool    `json:"create_panel_user"`
+	CreateSystemUser bool     `json:"create_system_user"`
+	HomeDirectory    string   `json:"home_directory"`
+	Shell            string   `json:"shell"`
+	SystemGroups     []string `json:"system_groups"`
+	AllowSudo        bool     `json:"allow_sudo"`
+	CreateHome       bool     `json:"create_home"`
+	AllowSSH         bool     `json:"allow_ssh"`
+	SSHPublicKey     string   `json:"ssh_public_key"`
 }
 
 func (a API) Register(app *fiber.App) {
@@ -261,8 +271,8 @@ func (a API) dashboard(c *fiber.Ctx) error {
 func (a API) metricsHistory(c *fiber.Ctx) error {
 	rangeName := c.Query("range", "day")
 	now := time.Now().UTC()
-	start := time.Time{}
-	bucketSeconds := int64(3600)
+	var start time.Time
+	var bucketSeconds int64
 	switch rangeName {
 	case "day":
 		start = now.Add(-24 * time.Hour)
@@ -336,31 +346,98 @@ func (a API) createUser(c *fiber.Ctx) error {
 	request.Username = strings.TrimSpace(request.Username)
 	request.SystemUsername = strings.TrimSpace(request.SystemUsername)
 	request.DisplayName = strings.TrimSpace(request.DisplayName)
-	if !usernamePattern.MatchString(request.Username) || len(request.Password) < 12 || len(request.Password) > 1024 || len(request.DisplayName) > 128 {
+	createPanel := request.CreatePanelUser == nil || *request.CreatePanelUser
+	if !createPanel && !request.CreateSystemUser {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "user_target_required"})
+	}
+	if !usernamePattern.MatchString(request.Username) || len(request.DisplayName) > 128 {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "user_validation_failed"})
 	}
-	if request.SystemUsername != "" && !usernamePattern.MatchString(request.SystemUsername) {
+	if createPanel && (len(request.Password) < 12 || len(request.Password) > 1024) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "password_validation_failed"})
+	}
+	if request.SystemUsername == "" {
+		request.SystemUsername = request.Username
+	}
+	if !usernamePattern.MatchString(request.SystemUsername) {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "system_username_invalid"})
 	}
-	if request.Role != "admin" && request.Role != "operator" && request.Role != "viewer" {
+	if createPanel && request.Role != "admin" && request.Role != "operator" && request.Role != "viewer" {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "role_invalid"})
 	}
-	hash, err := auth.Hash(request.Password)
-	if err != nil {
-		return err
+	if request.CreateSystemUser {
+		if a.SystemUsers == nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "system_user_service_unavailable"})
+		}
+		exists, err := a.SystemUsers.Exists(request.SystemUsername)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "system_username_exists"})
+		}
 	}
-	now := time.Now().UTC()
-	var systemUsername *string
-	if request.SystemUsername != "" {
-		systemUsername = &request.SystemUsername
+	if createPanel {
+		var count int64
+		if err := a.DB.WithContext(c.UserContext()).Model(&database.User{}).Where("username = ?", request.Username).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "username_exists"})
+		}
 	}
-	user := database.User{Username: request.Username, DisplayName: request.DisplayName, PasswordHash: hash, Role: request.Role, IsActive: true, SystemUsername: systemUsername, CreatedAt: now, UpdatedAt: now}
-	if err := a.DB.WithContext(c.UserContext()).Create(&user).Error; err != nil {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "username_exists"})
+
+	systemCreated := false
+	if request.CreateSystemUser {
+		if request.HomeDirectory == "" {
+			request.HomeDirectory = "/home/" + request.SystemUsername
+		}
+		if request.Shell == "" {
+			request.Shell = "/bin/bash"
+		}
+		operation := systemusers.CreateRequest{
+			Username: request.SystemUsername, HomeDirectory: request.HomeDirectory, Shell: request.Shell,
+			Groups: request.SystemGroups, AllowSudo: request.AllowSudo, CreateHome: request.CreateHome,
+			AllowSSH: request.AllowSSH, SSHPublicKey: request.SSHPublicKey,
+		}
+		if err := a.SystemUsers.Create(c.UserContext(), operation); err != nil {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "system_user_create_failed"})
+		}
+		systemCreated = true
+	}
+
+	var user database.User
+	if createPanel {
+		hash, err := auth.Hash(request.Password)
+		if err != nil {
+			if systemCreated {
+				_ = a.SystemUsers.Delete(c.UserContext(), systemusers.DeleteRequest{Username: request.SystemUsername, RemoveHome: request.CreateHome})
+			}
+			return err
+		}
+		now := time.Now().UTC()
+		var systemUsername *string
+		if request.CreateSystemUser || request.SystemUsername != request.Username {
+			systemUsername = &request.SystemUsername
+		}
+		user = database.User{Username: request.Username, DisplayName: request.DisplayName, PasswordHash: hash, Role: request.Role, IsActive: true, SystemUsername: systemUsername, CreatedAt: now, UpdatedAt: now}
+		if err := a.DB.WithContext(c.UserContext()).Create(&user).Error; err != nil {
+			if systemCreated {
+				if rollbackErr := a.SystemUsers.Delete(c.UserContext(), systemusers.DeleteRequest{Username: request.SystemUsername, RemoveHome: request.CreateHome}); rollbackErr != nil {
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "panel_user_create_failed_rollback_failed"})
+				}
+			}
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "username_exists"})
+		}
 	}
 	claims := c.Locals("claims").(*auth.Claims)
-	database.Audit(a.DB, claims.UserID, "user.create", "user", fmt.Sprint(user.ID), `{"password":"hidden"}`, c.IP())
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"id": user.ID})
+	details := fmt.Sprintf(`{"password":"hidden","panel_user":%t,"system_user":%t,"system_username":%q}`, createPanel, systemCreated, request.SystemUsername)
+	targetID := request.SystemUsername
+	if createPanel {
+		targetID = fmt.Sprint(user.ID)
+	}
+	database.Audit(a.DB, claims.UserID, "user.create", "user", targetID, details, c.IP())
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"id": user.ID, "panel_user_created": createPanel, "system_user_created": systemCreated})
 }
 
 func (a API) updateUser(c *fiber.Ctx) error {

@@ -116,7 +116,7 @@ func call[T any](ctx context.Context, client *Client, method string, payload any
 	if err != nil {
 		return zero, err
 	}
-	defer httpResponse.Body.Close()
+	defer func() { _ = httpResponse.Body.Close() }()
 	limited := io.LimitReader(httpResponse.Body, 1<<20)
 	var envelope apiResponse[T]
 	if err := json.NewDecoder(limited).Decode(&envelope); err != nil {

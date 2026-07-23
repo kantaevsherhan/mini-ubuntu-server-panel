@@ -24,6 +24,7 @@ import (
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/httpapi"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/metrics"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/notifications"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/systemusers"
 	"gorm.io/gorm"
 )
 
@@ -33,6 +34,12 @@ var version = "dev"
 var web embed.FS
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "privileged-user" {
+		if err := systemusers.RunPrivileged(os.Stdin); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	configPath := flag.String("config", "/etc/mini-ubuntu-server/config.yml", "configuration file")
 	showVersion := flag.Bool("version", false, "print version")
 	flag.Parse()
@@ -53,8 +60,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer sqlDB.Close()
+	defer func() { _ = sqlDB.Close() }()
 	bootstrap(db)
+	systemUserClient, err := systemusers.NewSudoClient()
+	if err != nil {
+		log.Fatal(err)
+	}
 	go metrics.NewCollector(db, time.Minute).Start(context.Background())
 	go notifications.New(db, notifications.TelegramSender{DB: db}).Run(context.Background())
 
@@ -85,7 +96,7 @@ func main() {
 	}))
 	app.Use(compress.New())
 
-	httpapi.API{DB: db, Secret: cfg.JWTSecret, Version: version}.Register(app)
+	httpapi.API{DB: db, SystemUsers: systemUserClient, Secret: cfg.JWTSecret, Version: version}.Register(app)
 	root, err := fs.Sub(web, "web")
 	if err != nil {
 		log.Fatal(err)
@@ -131,7 +142,7 @@ func staticFrontend(root fs.FS) fiber.Handler {
 			data, err = fs.ReadFile(root, "index.html")
 		}
 		if err != nil {
-			data, err = web.ReadFile("web-placeholder.html")
+			data, _ = web.ReadFile("web-placeholder.html")
 		}
 		switch {
 		case strings.HasSuffix(path, ".js"):

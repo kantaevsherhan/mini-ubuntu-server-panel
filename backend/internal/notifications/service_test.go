@@ -26,7 +26,7 @@ func TestEnqueueDeduplicatesAndDelivers(t *testing.T) {
 		t.Fatal(err)
 	}
 	sqlDB, _ := db.DB()
-	defer sqlDB.Close()
+	defer func() { _ = sqlDB.Close() }()
 	name := "Admin"
 	err = db.Create(&database.TelegramRecipient{TelegramChatID: 42, DisplayName: &name, Enabled: true, ReceiveAlerts: true, CreatedAt: time.Now().UTC()}).Error
 	if err != nil {
@@ -59,7 +59,7 @@ func TestDeliveryRetriesWithBackoff(t *testing.T) {
 		t.Fatal(err)
 	}
 	sqlDB, _ := db.DB()
-	defer sqlDB.Close()
+	defer func() { _ = sqlDB.Close() }()
 	_ = db.Model(&database.TelegramSetting{}).Where("id = ?", 1).Update("retry_count", 1).Error
 	name := "Admin"
 	_ = db.Create(&database.TelegramRecipient{TelegramChatID: 42, DisplayName: &name, Enabled: true, ReceiveAlerts: true, CreatedAt: time.Now().UTC()}).Error

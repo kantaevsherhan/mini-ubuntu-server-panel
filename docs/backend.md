@@ -29,6 +29,19 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 
 Ответы об ошибках содержат стабильное поле `error` и не раскрывают внутреннее сообщение Go/SQLite.
 
+`POST /users` поддерживает независимые флаги `create_panel_user` и `create_system_user`. Для Ubuntu-пользователя доступны `system_username`, `home_directory`, `shell`, `system_groups`, `allow_sudo`, `create_home`, `allow_ssh` и `ssh_public_key`. Если системная запись создана, но запись панели сохранить не удалось, backend вызывает компенсирующее удаление системного пользователя и его только что созданной домашней директории.
+
+## Root-helper
+
+Основной процесс работает без root. Единственная пользовательская привилегированная команда — `/opt/mini-ubuntu-server/bin/mini-ubuntu-server privileged-user`, закреплённая в sudoers без wildcard-аргументов. Helper:
+
+- доступен только через `sudo -n` и проверяет effective UID;
+- принимает не более 32 KiB JSON через stdin и отклоняет неизвестные поля;
+- разрешает только allowlist shell, безопасные username/group и home внутри `/home`;
+- запускает `useradd`/`userdel` через массив аргументов без shell;
+- проверяет формат публичного SSH-ключа и выставляет права `.ssh`/`authorized_keys`;
+- не принимает и не хранит Ubuntu-пароли.
+
 ## SQLite и ORM
 
 Runtime data access использует GORM и pure-Go SQLite driver `github.com/glebarez/sqlite`, поэтому release сохраняет `CGO_ENABLED=0`. SQLite работает в WAL mode, с foreign keys, prepared statements и одним writer connection. Raw SQL разрешён только в embedded versioned migration-файлах.

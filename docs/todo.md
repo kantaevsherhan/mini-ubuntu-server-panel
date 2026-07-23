@@ -24,7 +24,7 @@
 
 - [x] Исторические CPU/RAM метрики: SQLite samples, `/proc` collector, range API и ECharts день/неделя/месяц/всё время.
 - [x] Полный CRUD panel users, web sessions и обязательная смена временного пароля.
-- [ ] Транзакционное создание panel + Ubuntu user с compensating rollback.
+- [x] Транзакционное создание panel + Ubuntu user с compensating rollback и integration test.
 - [ ] Связь `system_username`, группы, sudo, SSH keys и sessions.
 - [x] Telegram getMe/getUpdates/sendMessage, SSRF-safe transport и recipients UI.
 - [ ] Привилегированное изменение Telegram Bot Token через CLI helper без передачи token в argv, лог или SQLite.
@@ -39,7 +39,7 @@
 
 ## Известные ошибки и ограничения
 
-- Backend не имеет достаточного набора unit/integration tests; текущий `go test` проверяет только компиляцию пакетов.
+- Backend tests покрывают migrations, auth, Telegram, notification worker, валидацию root-helper и compensating rollback; для остальных системных модулей покрытие ещё требуется.
 - `scripts/update.sh` health-check пока использует порт `8080`, а не читает значение из config.
 - Rollback update восстанавливает binary, но не восстанавливает несовместимую SQLite migration.
 - Installer использует GitHub API без authenticated token и может попасть под rate limit.

@@ -16,10 +16,10 @@ func TestClientGetMeAndSendMessage(t *testing.T) {
 		requests = append(requests, request.URL.Path)
 		writer.Header().Set("Content-Type", "application/json")
 		if strings.HasSuffix(request.URL.Path, "/getMe") {
-			fmt.Fprint(writer, `{"ok":true,"result":{"id":42,"username":"panel_bot"}}`)
+			_, _ = fmt.Fprint(writer, `{"ok":true,"result":{"id":42,"username":"panel_bot"}}`)
 			return
 		}
-		fmt.Fprint(writer, `{"ok":true,"result":{"message_id":1}}`)
+		_, _ = fmt.Fprint(writer, `{"ok":true,"result":{"message_id":1}}`)
 	}))
 	defer server.Close()
 	client, err := New(server.URL, "123:test-token", time.Second)

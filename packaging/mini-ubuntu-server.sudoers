@@ -1,4 +1,2 @@
-# Generated for Mini Ubuntu Server Panel. Keep commands explicit and auditable.
-Cmnd_Alias MINI_SERVER_SYSTEMCTL = /usr/bin/systemctl status *, /usr/bin/systemctl start *, /usr/bin/systemctl stop *, /usr/bin/systemctl restart *
-Cmnd_Alias MINI_SERVER_USERS = /usr/sbin/useradd *, /usr/sbin/usermod *, /usr/sbin/userdel *
-mini-ubuntu-server ALL=(root) NOPASSWD: MINI_SERVER_SYSTEMCTL, MINI_SERVER_USERS
+# Mini Ubuntu Server Panel privileged boundary. Arguments are intentionally exact.
+mini-ubuntu-server ALL=(root) NOPASSWD: /opt/mini-ubuntu-server/bin/mini-ubuntu-server privileged-user

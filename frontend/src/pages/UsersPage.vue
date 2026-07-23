@@ -3,15 +3,18 @@ import { onMounted, reactive, ref } from 'vue'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
+import Checkbox from 'primevue/checkbox'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
 import FloatLabel from 'primevue/floatlabel'
 import Fluid from 'primevue/fluid'
 import InputText from 'primevue/inputtext'
+import MultiSelect from 'primevue/multiselect'
 import Password from 'primevue/password'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
+import Textarea from 'primevue/textarea'
 import ToggleSwitch from 'primevue/toggleswitch'
 import api from '../services/api'
 import { formatDateTime } from '../services/dateTime'
@@ -55,8 +58,18 @@ const form = reactive({
   role: 'viewer' as PanelUser['role'],
   is_active: true,
   system_username: '',
+  create_panel_user: true,
+  create_system_user: false,
+  home_directory: '',
+  shell: '/bin/bash',
+  system_groups: [] as string[],
+  allow_sudo: false,
+  create_home: true,
+  allow_ssh: false,
+  ssh_public_key: '',
 })
 const roles = ['admin', 'operator', 'viewer']
+const availableGroups = ref<string[]>([])
 const confirm = useConfirm()
 const toast = useToast()
 const { t, locale } = useI18n()
@@ -70,7 +83,7 @@ async function load() {
   }
 }
 
-function openCreate() {
+async function openCreate() {
   mode.value = 'create'
   Object.assign(form, {
     username: '',
@@ -79,7 +92,17 @@ function openCreate() {
     role: 'viewer',
     is_active: true,
     system_username: '',
+    create_panel_user: true,
+    create_system_user: false,
+    home_directory: '',
+    shell: '/bin/bash',
+    system_groups: [],
+    allow_sudo: false,
+    create_home: true,
+    allow_ssh: false,
+    ssh_public_key: '',
   })
+  if (availableGroups.value.length === 0) await loadSystemGroups()
   editorVisible.value = true
 }
 
@@ -165,6 +188,11 @@ function remove(user: PanelUser) {
   })
 }
 
+async function loadSystemGroups() {
+  const response = await api.get<Array<{ groups: string[] }>>('/system-users')
+  availableGroups.value = [...new Set(response.data.flatMap((item) => item.groups || []))].sort()
+}
+
 onMounted(load)
 </script>
 
@@ -233,7 +261,7 @@ onMounted(load)
       v-model:visible="editorVisible"
       modal
       :header="mode === 'create' ? t.createUser : t.editUser"
-      :style="{ width: '36rem' }"
+      :style="{ width: 'min(52rem, calc(100vw - 2rem))' }"
     >
       <Fluid
         ><form
@@ -241,6 +269,16 @@ onMounted(load)
           class="grid grid-cols-1 gap-6 pt-3 sm:grid-cols-2"
           @submit.prevent="save"
         >
+          <div v-if="mode === 'create'" class="col-span-full flex flex-wrap gap-5">
+            <label class="flex items-center gap-2">
+              <Checkbox v-model="form.create_panel_user" binary />
+              {{ t.createPanelUser }}
+            </label>
+            <label class="flex items-center gap-2">
+              <Checkbox v-model="form.create_system_user" binary />
+              {{ t.createSystemUser }}
+            </label>
+          </div>
           <FloatLabel variant="on"
             ><InputText
               id="panel-username"
@@ -253,13 +291,13 @@ onMounted(load)
               t.displayName
             }}</label></FloatLabel
           >
-          <FloatLabel v-if="mode === 'create'" variant="on"
+          <FloatLabel v-if="mode === 'create' && form.create_panel_user" variant="on"
             ><Password id="panel-password" v-model="form.password" toggle-mask /><label
               for="panel-password"
               >{{ t.password }}</label
             ></FloatLabel
           >
-          <FloatLabel variant="on"
+          <FloatLabel v-if="mode === 'edit' || form.create_panel_user" variant="on"
             ><Select id="panel-role" v-model="form.role" :options="roles" /><label
               for="panel-role"
               >{{ t.role }}</label
@@ -271,6 +309,45 @@ onMounted(load)
               >{{ t.ubuntuUser }}</label
             ></FloatLabel
           >
+          <template v-if="mode === 'create' && form.create_system_user">
+            <FloatLabel variant="on">
+              <InputText id="home-directory" v-model="form.home_directory" />
+              <label for="home-directory">{{ t.homeDirectory }}</label>
+            </FloatLabel>
+            <FloatLabel variant="on">
+              <Select
+                id="system-shell"
+                v-model="form.shell"
+                :options="['/bin/bash', '/bin/sh', '/usr/sbin/nologin', '/bin/false']"
+              />
+              <label for="system-shell">Shell</label>
+            </FloatLabel>
+            <FloatLabel variant="on" class="col-span-full">
+              <MultiSelect
+                id="system-groups"
+                v-model="form.system_groups"
+                :options="availableGroups"
+                filter
+                display="chip"
+              />
+              <label for="system-groups">{{ t.systemGroups }}</label>
+            </FloatLabel>
+            <div class="col-span-full grid gap-3 sm:grid-cols-3">
+              <label class="flex items-center gap-2">
+                <Checkbox v-model="form.create_home" binary />{{ t.createHome }}
+              </label>
+              <label class="flex items-center gap-2">
+                <Checkbox v-model="form.allow_sudo" binary />{{ t.allowSudo }}
+              </label>
+              <label class="flex items-center gap-2">
+                <Checkbox v-model="form.allow_ssh" binary />{{ t.allowSSH }}
+              </label>
+            </div>
+            <FloatLabel v-if="form.allow_ssh" variant="on" class="col-span-full">
+              <Textarea id="ssh-public-key" v-model="form.ssh_public_key" rows="4" />
+              <label for="ssh-public-key">{{ t.sshPublicKey }}</label>
+            </FloatLabel>
+          </template>
           <label v-if="mode === 'edit'" class="flex items-center gap-3"
             ><ToggleSwitch v-model="form.is_active" />{{ t.active }}</label
           >
@@ -287,6 +364,7 @@ onMounted(load)
           :label="t.save"
           icon="pi pi-save"
           :loading="saving"
+          :disabled="mode === 'create' && !form.create_panel_user && !form.create_system_user"
       /></template>
     </Dialog>
 

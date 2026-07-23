@@ -49,7 +49,7 @@ func TestForeignKeysAreEnabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sqlDB.Close()
+	defer func() { _ = sqlDB.Close() }()
 	var enabled int
 	if err := db.Raw(`PRAGMA foreign_keys`).Scan(&enabled).Error; err != nil {
 		t.Fatal(err)

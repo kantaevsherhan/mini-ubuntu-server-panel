@@ -29,7 +29,7 @@ func Open(path string) (*gorm.DB, error) {
 	}
 	sqlDB.SetMaxOpenConns(1)
 	if err = migrate(db); err != nil {
-		sqlDB.Close()
+		_ = sqlDB.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return db, nil

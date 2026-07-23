@@ -74,7 +74,7 @@ func readCPU() (cpuTimes, error) {
 	if err != nil {
 		return cpuTimes{}, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	scanner := bufio.NewScanner(file)
 	if !scanner.Scan() {
 		return cpuTimes{}, errors.New("missing aggregate CPU row")
@@ -102,7 +102,7 @@ func readMemory() (used, total uint64, percent float64, err error) {
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	values := map[string]uint64{}
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
