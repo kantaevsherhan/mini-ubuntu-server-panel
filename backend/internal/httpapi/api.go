@@ -62,6 +62,10 @@ func (a API) Register(app *fiber.App) {
 	secured.Get("/metrics/history", a.metricsHistory)
 	secured.Get("/users", a.users)
 	secured.Post("/users", a.requireRole("admin"), a.createUser)
+	secured.Patch("/users/:id", a.requireRole("admin"), a.updateUser)
+	secured.Delete("/users/:id", a.requireRole("admin"), a.deleteUser)
+	secured.Post("/users/:id/reset-password", a.requireRole("admin"), a.resetUserPassword)
+	secured.Get("/users/:id/sessions", a.requireRole("admin"), a.userSessions)
 	secured.Get("/system-users", a.requireRole("admin", "operator"), a.systemUsers)
 	secured.Get("/telegram/settings", a.requireRole("admin"), a.telegramSettings)
 	secured.Put("/telegram/settings", a.requireRole("admin"), a.updateTelegramSettings)
@@ -359,6 +363,171 @@ func (a API) createUser(c *fiber.Ctx) error {
 	claims := c.Locals("claims").(*auth.Claims)
 	database.Audit(a.DB, claims.UserID, "user.create", "user", fmt.Sprint(id), `{"password":"hidden"}`, c.IP())
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"id": id})
+}
+
+func (a API) updateUser(c *fiber.Ctx) error {
+	targetID, err := parseID(c.Params("id"))
+	if err != nil {
+		return fiber.ErrBadRequest
+	}
+	var request struct {
+		DisplayName    string `json:"display_name"`
+		Role           string `json:"role"`
+		Active         bool   `json:"is_active"`
+		SystemUsername string `json:"system_username"`
+	}
+	if err := c.BodyParser(&request); err != nil {
+		return fiber.ErrBadRequest
+	}
+	request.DisplayName = strings.TrimSpace(request.DisplayName)
+	request.SystemUsername = strings.TrimSpace(request.SystemUsername)
+	if len(request.DisplayName) > 128 || (request.Role != "admin" && request.Role != "operator" && request.Role != "viewer") || (request.SystemUsername != "" && !usernamePattern.MatchString(request.SystemUsername)) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "user_validation_failed"})
+	}
+	claims := c.Locals("claims").(*auth.Claims)
+	if targetID == claims.UserID && (request.Role != "admin" || !request.Active) {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "cannot_demote_or_disable_self"})
+	}
+	var currentRole string
+	var currentActive bool
+	if err := a.DB.QueryRowContext(c.UserContext(), `SELECT role,is_active FROM users WHERE id=?`, targetID).Scan(&currentRole, &currentActive); err != nil {
+		if err == sql.ErrNoRows {
+			return fiber.ErrNotFound
+		}
+		return err
+	}
+	if currentRole == "admin" && currentActive && (request.Role != "admin" || !request.Active) {
+		if last, err := a.isLastActiveAdmin(c.UserContext(), targetID); err != nil {
+			return err
+		} else if last {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "last_admin_protected"})
+		}
+	}
+	tx, err := a.DB.BeginTx(c.UserContext(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(c.UserContext(), `UPDATE users SET display_name=?,role=?,is_active=?,system_username=NULLIF(?,''),updated_at=? WHERE id=?`, request.DisplayName, request.Role, request.Active, request.SystemUsername, time.Now().UTC(), targetID); err != nil {
+		return err
+	}
+	if !request.Active {
+		if _, err = tx.ExecContext(c.UserContext(), `UPDATE web_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL`, time.Now().UTC(), targetID); err != nil {
+			return err
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	database.Audit(a.DB, claims.UserID, "user.update", "user", strconv.FormatInt(targetID, 10), fmt.Sprintf(`{"role":%q,"active":%t}`, request.Role, request.Active), c.IP())
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (a API) deleteUser(c *fiber.Ctx) error {
+	targetID, err := parseID(c.Params("id"))
+	if err != nil {
+		return fiber.ErrBadRequest
+	}
+	claims := c.Locals("claims").(*auth.Claims)
+	if targetID == claims.UserID {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "cannot_delete_self"})
+	}
+	var role string
+	var active bool
+	if err := a.DB.QueryRowContext(c.UserContext(), `SELECT role,is_active FROM users WHERE id=?`, targetID).Scan(&role, &active); err != nil {
+		if err == sql.ErrNoRows {
+			return fiber.ErrNotFound
+		}
+		return err
+	}
+	if role == "admin" && active {
+		if last, err := a.isLastActiveAdmin(c.UserContext(), targetID); err != nil {
+			return err
+		} else if last {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "last_admin_protected"})
+		}
+	}
+	if _, err := a.DB.ExecContext(c.UserContext(), `DELETE FROM users WHERE id=?`, targetID); err != nil {
+		return err
+	}
+	database.Audit(a.DB, claims.UserID, "user.delete", "user", strconv.FormatInt(targetID, 10), "{}", c.IP())
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (a API) resetUserPassword(c *fiber.Ctx) error {
+	targetID, err := parseID(c.Params("id"))
+	if err != nil {
+		return fiber.ErrBadRequest
+	}
+	var request struct {
+		Password string `json:"password"`
+	}
+	if err := c.BodyParser(&request); err != nil || len(request.Password) < 12 || len(request.Password) > 1024 {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "password_validation_failed"})
+	}
+	hash, err := auth.Hash(request.Password)
+	if err != nil {
+		return err
+	}
+	tx, err := a.DB.BeginTx(c.UserContext(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(c.UserContext(), `UPDATE users SET password_hash=?,must_change_password=1,updated_at=? WHERE id=?`, hash, time.Now().UTC(), targetID)
+	if err != nil {
+		return err
+	}
+	changed, _ := result.RowsAffected()
+	if changed == 0 {
+		return fiber.ErrNotFound
+	}
+	if _, err = tx.ExecContext(c.UserContext(), `UPDATE web_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL`, time.Now().UTC(), targetID); err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	claims := c.Locals("claims").(*auth.Claims)
+	database.Audit(a.DB, claims.UserID, "user.password.reset", "user", strconv.FormatInt(targetID, 10), `{"password":"hidden","sessions_revoked":true}`, c.IP())
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (a API) userSessions(c *fiber.Ctx) error {
+	targetID, err := parseID(c.Params("id"))
+	if err != nil {
+		return fiber.ErrBadRequest
+	}
+	rows, err := a.DB.QueryContext(c.UserContext(), `SELECT id,ip_address,user_agent,created_at,last_seen_at,expires_at,revoked_at FROM web_sessions WHERE user_id=? ORDER BY last_seen_at DESC LIMIT 100`, targetID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	result := make([]fiber.Map, 0)
+	for rows.Next() {
+		var id, ipAddress, userAgent string
+		var createdAt, lastSeenAt, expiresAt time.Time
+		var revokedAt sql.NullTime
+		if err := rows.Scan(&id, &ipAddress, &userAgent, &createdAt, &lastSeenAt, &expiresAt, &revokedAt); err != nil {
+			return err
+		}
+		result = append(result, fiber.Map{"id": id, "ip_address": ipAddress, "user_agent": userAgent, "created_at": createdAt, "last_seen_at": lastSeenAt, "expires_at": expiresAt, "revoked_at": nullableTime(revokedAt)})
+	}
+	return c.JSON(result)
+}
+
+func (a API) isLastActiveAdmin(ctx context.Context, excludedID int64) (bool, error) {
+	var count int
+	err := a.DB.QueryRowContext(ctx, `SELECT count(*) FROM users WHERE role='admin' AND is_active=1 AND id<>?`, excludedID).Scan(&count)
+	return count == 0, err
+}
+
+func parseID(value string) (int64, error) {
+	id, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || id <= 0 {
+		return 0, fmt.Errorf("invalid id")
+	}
+	return id, nil
 }
 
 func (a API) systemUsers(c *fiber.Ctx) error {
