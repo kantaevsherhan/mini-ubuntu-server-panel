@@ -20,6 +20,7 @@
 - `sessionStorage` вместо долговременного хранения JWT;
 - `bun audit`, Go checks и CI;
 - systemd hardening и отдельный системный пользователь.
+- Docker socket недоступен по умолчанию; opt-in `--enable-docker` документирован как root-equivalent доступ, container IDs/actions проверяются allowlist, remove не использует force и не удаляет volumes.
 
 ## Обязательные меры для production
 

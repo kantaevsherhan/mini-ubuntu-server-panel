@@ -50,7 +50,7 @@ type apiResponse[T any] struct {
 func New(baseURL, token string, timeout time.Duration) (*Client, error) {
 	parsed, err := url.Parse(baseURL)
 	if err != nil || parsed.Hostname() == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
-		return nil, errors.New("invalid Telegram API URL")
+		return nil, errors.New("invalid telegram API URL")
 	}
 	if token == "" || len(token) > 256 || strings.ContainsAny(token, "/\r\n") {
 		return nil, errors.New("invalid Telegram token")
@@ -68,7 +68,7 @@ func New(baseURL, token string, timeout time.Duration) (*Client, error) {
 			}
 			addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
 			if err != nil || len(addresses) == 0 {
-				return nil, errors.New("Telegram host resolution failed")
+				return nil, errors.New("telegram host resolution failed")
 			}
 			for _, candidate := range addresses {
 				private := candidate.IP.IsPrivate() || candidate.IP.IsLinkLocalUnicast() || candidate.IP.IsUnspecified()
@@ -79,7 +79,7 @@ func New(baseURL, token string, timeout time.Duration) (*Client, error) {
 				}
 				return dialer.DialContext(ctx, network, net.JoinHostPort(candidate.IP.String(), port))
 			}
-			return nil, errors.New("Telegram destination is not allowed")
+			return nil, errors.New("telegram destination is not allowed")
 		},
 	}
 	return &Client{baseURL: strings.TrimRight(baseURL, "/"), token: token, http: &http.Client{Timeout: timeout, Transport: transport}}, nil
@@ -114,16 +114,16 @@ func call[T any](ctx context.Context, client *Client, method string, payload any
 	request.Header.Set("Content-Type", "application/json")
 	httpResponse, err := client.http.Do(request)
 	if err != nil {
-		return zero, errors.New("Telegram API network request failed")
+		return zero, errors.New("telegram API network request failed")
 	}
 	defer func() { _ = httpResponse.Body.Close() }()
 	limited := io.LimitReader(httpResponse.Body, 1<<20)
 	var envelope apiResponse[T]
 	if err := json.NewDecoder(limited).Decode(&envelope); err != nil {
-		return zero, errors.New("invalid Telegram API response")
+		return zero, errors.New("invalid telegram API response")
 	}
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 300 || !envelope.OK {
-		return zero, fmt.Errorf("Telegram API request failed: %s", envelope.Description)
+		return zero, fmt.Errorf("telegram API request failed: %s", envelope.Description)
 	}
 	return envelope.Result, nil
 }

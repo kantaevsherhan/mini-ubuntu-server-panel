@@ -27,7 +27,7 @@ bun run dev
 cd frontend && bun run format && bun run check && bun audit
 docker run --rm -u "$(id -u):$(id -g)" -e GOCACHE=/tmp/go-cache \
   -e GOMODCACHE=/tmp/go-mod-cache -v "$PWD:/workspace" \
-  -w /workspace/backend golang:1.23 \
+  -w /workspace/backend golang:1.24 \
   sh -c 'gofmt -w . && go test ./... && go vet ./...'
 bash -n scripts/*.sh
 ```

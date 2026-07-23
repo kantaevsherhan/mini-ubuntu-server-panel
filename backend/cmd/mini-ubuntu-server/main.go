@@ -21,6 +21,7 @@ import (
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/auth"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/config"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/database"
+	dockermanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/docker"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/httpapi"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/metrics"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/notifications"
@@ -99,6 +100,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	dockerManager, err := dockermanager.NewManager()
+	if err != nil {
+		log.Fatal(err)
+	}
 	go metrics.NewCollector(db, time.Minute).Start(context.Background())
 	go notifications.New(db, notifications.TelegramSender{DB: db}).Run(context.Background())
 
@@ -129,7 +134,7 @@ func main() {
 	}))
 	app.Use(compress.New())
 
-	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Secret: cfg.JWTSecret, Version: version}.Register(app)
+	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Docker: dockerManager, Secret: cfg.JWTSecret, Version: version}.Register(app)
 	root, err := fs.Sub(web, "web")
 	if err != nil {
 		log.Fatal(err)

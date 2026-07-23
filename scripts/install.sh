@@ -6,6 +6,7 @@ VERSION="latest"
 PORT="8080"
 ADMIN_USERNAME="admin"
 DATA_DIR="/var/lib/mini-ubuntu-server"
+ENABLE_DOCKER=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -13,6 +14,7 @@ while [[ $# -gt 0 ]]; do
     --port) PORT="$2"; shift 2 ;;
     --username) ADMIN_USERNAME="$2"; shift 2 ;;
     --data-dir) DATA_DIR="$2"; shift 2 ;;
+    --enable-docker) ENABLE_DOCKER=1; shift ;;
     --update) exec bash <(curl -fsSL "https://raw.githubusercontent.com/$REPOSITORY/main/scripts/update.sh") ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
@@ -30,6 +32,11 @@ apt-get update -qq
 apt-get install -y -qq ca-certificates curl openssl sudo tar
 getent group mini-ubuntu-server >/dev/null || groupadd --system mini-ubuntu-server
 id mini-ubuntu-server >/dev/null 2>&1 || useradd --system --gid mini-ubuntu-server --home-dir "$DATA_DIR" --shell /usr/sbin/nologin mini-ubuntu-server
+if [[ "$ENABLE_DOCKER" -eq 1 ]]; then
+  getent group docker >/dev/null || { echo "Docker group does not exist; install Docker Engine first" >&2; exit 1; }
+  usermod -aG docker mini-ubuntu-server
+  echo "Warning: Docker socket access is root-equivalent and was explicitly enabled for mini-ubuntu-server." >&2
+fi
 install -d -o root -g mini-ubuntu-server -m 0750 /opt/mini-ubuntu-server/bin /etc/mini-ubuntu-server
 install -d -o mini-ubuntu-server -g mini-ubuntu-server -m 0750 "$DATA_DIR" "$DATA_DIR/backups" /var/log/mini-ubuntu-server
 

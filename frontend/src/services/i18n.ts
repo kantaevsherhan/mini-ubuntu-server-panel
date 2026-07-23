@@ -164,6 +164,18 @@ const messages = {
     enable: 'Включить',
     disable: 'Отключить',
     protectedService: 'Защищён',
+    dockerHint:
+      'Контейнеры Docker Engine. Доступ к daemon socket должен быть явно разрешён при установке.',
+    searchContainers: 'Поиск по имени, image, ID или состоянию',
+    containerName: 'Контейнер',
+    image: 'Образ',
+    health: 'Health',
+    ports: 'Порты',
+    noContainers: 'Контейнеры не найдены',
+    containerAction: 'Управление контейнером',
+    containerActionConfirm: 'Выполнить действие для контейнера',
+    containerActionDone: 'Действие выполнено',
+    remove: 'Удалить',
   },
   en: {
     dashboard: 'Dashboard',
@@ -327,6 +339,18 @@ const messages = {
     enable: 'Enable',
     disable: 'Disable',
     protectedService: 'Protected',
+    dockerHint:
+      'Docker Engine containers. Daemon socket access must be explicitly granted during installation.',
+    searchContainers: 'Search by name, image, ID, or state',
+    containerName: 'Container',
+    image: 'Image',
+    health: 'Health',
+    ports: 'Ports',
+    noContainers: 'No containers found',
+    containerAction: 'Manage container',
+    containerActionConfirm: 'Perform action for container',
+    containerActionDone: 'Action completed',
+    remove: 'Remove',
   },
 } as const
 

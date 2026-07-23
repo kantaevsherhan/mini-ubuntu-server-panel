@@ -25,6 +25,8 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 | POST | `/processes/:pid/signal` | admin/operator |
 | GET | `/services` | admin/operator |
 | POST | `/services/:unit/action` | admin/operator |
+| GET | `/docker/containers` | admin/operator |
+| POST | `/docker/containers/:id/action` | admin/operator |
 | GET | `/users` | authenticated |
 | POST | `/users` | admin |
 | GET | `/system-users` | admin/operator |
@@ -62,6 +64,8 @@ Bot Token изменяется отдельным exact subcommand `privileged-s
 
 Systemd adapter объединяет `systemctl list-units` и `list-unit-files`, чтобы показать активные и неактивные установленные сервисы. Изменения выполняются exact subcommand `privileged-service`: unit name проверяется строгим шаблоном с обязательным `.service`, доступны только `start`, `stop`, `restart`, `enable`, `disable`, shell не используется. Собственный unit панели заблокирован, успешные действия записываются в аудит.
 
+Docker adapter использует поддерживаемые модули `github.com/moby/moby/client` и `github.com/moby/moby/api` с автоматическим согласованием Engine API. Endpoint возвращает все контейнеры, включая остановленные. Действия принимают только hex container ID длиной 12–64 и allowlist `start`, `stop`, `restart`, `remove`; remove никогда не использует `force` и не удаляет volumes. Все успешные изменения записываются в аудит.
+
 ## Очередь уведомлений
 
 Правила seeded для ресурсных, Docker, systemd, security и system событий. Каждое правило задаёт enabled, severity, выбранных Telegram recipients, cooldown, repeat interval и recovery notification. Worker хранит incident state в SQLite:
@@ -90,4 +94,4 @@ go vet ./...
 golangci-lint run
 ```
 
-Если Go отсутствует на хосте, проверки можно выполнить официальным Docker image `golang:1.23`.
+Если Go отсутствует на хосте, проверки можно выполнить официальным Docker image `golang:1.24`.

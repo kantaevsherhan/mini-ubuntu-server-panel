@@ -46,3 +46,5 @@ Dashboard загружает ECharts модульно (`echarts/core`) и пок
 Страница процессов использует PrimeVue `DataTable`, `Column`, `InputText`, `Tag`, `Button` и глобальный `ConfirmDialog`. Таблица виртуализирована, даты запуска форматируются общим Moment.js formatter, а действия управления скрыты для viewer.
 
 Страница systemd-сервисов также построена только на PrimeVue, использует виртуальный скроллинг и подтверждает каждое управляющее действие. Маршрут доступен admin/operator и дублирует backend RBAC, не заменяя его.
+
+Docker page использует PrimeVue `DataTable`, `Tag`, `Button`, `InputText` и `ConfirmDialog`, показывает state/health/ports и локализованное время создания. Доступные кнопки зависят от состояния контейнера; удаление показывается только для остановленных контейнеров.

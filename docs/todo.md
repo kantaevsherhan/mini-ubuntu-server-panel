@@ -21,6 +21,7 @@
 - [x] GORM ORM с pure-Go SQLite driver вместо runtime raw SQL.
 - [x] Processes: чтение `/proc`, RBAC API, allowlist сигналов через root-helper, аудит и PrimeVue virtual DataTable.
 - [x] Systemd services: installed/loaded units, RBAC actions, protected panel unit, audit и PrimeVue virtual DataTable.
+- [x] Docker SDK: API negotiation, container list/actions, strict ID/action validation, audit и PrimeVue virtual DataTable.
 
 ## В работе / следующий приоритет
 
@@ -32,7 +33,7 @@
 - [x] Привилегированное изменение Telegram Bot Token через root-helper stdin без передачи token в argv, лог или SQLite.
 - [x] Notification queue worker с delivery status, retry, exponential backoff и dedup.
 - [x] Notification rules UI: per-event severity, recipients, cooldown, repeat interval, recovery и delivery history.
-- [ ] Docker SDK, firewall, logs, files и terminal modules.
+- [ ] Firewall, logs, files и terminal modules.
 - [ ] WebSocket authentication, origin validation и rate limits.
 - [ ] Все Settings sections. RBAC-aware navigation, route guards, account identity и admin-only actions уже готовы.
 - [x] Добавить минимальные осмысленные micro-interactions: hover/focus для действий и ссылок, обратная связь выбора файла, мягкое раскрытие панелей и изменение статуса; поддержать `prefers-reduced-motion` и исключить декоративные тяжёлые анимации.
@@ -41,7 +42,7 @@
 
 ## Известные ошибки и ограничения
 
-- Backend tests покрывают migrations, auth, Telegram, notification worker, processes, валидацию root-helper и compensating rollback; для остальных системных модулей покрытие ещё требуется.
+- Backend tests покрывают migrations, auth, Telegram, notification worker, processes, systemd, Docker, валидацию root-helper и compensating rollback; для остальных системных модулей покрытие ещё требуется.
 - `scripts/update.sh` health-check пока использует порт `8080`, а не читает значение из config.
 - Rollback update восстанавливает binary, но не восстанавливает несовместимую SQLite migration.
 - Installer использует GitHub API без authenticated token и может попасть под rate limit.

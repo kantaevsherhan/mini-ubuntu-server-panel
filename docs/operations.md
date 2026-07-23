@@ -8,6 +8,14 @@ curl -fsSL https://raw.githubusercontent.com/kantaevsherhan/mini-ubuntu-server-p
 
 Установщик проверяет Ubuntu и архитектуру, скачивает Release, сверяет SHA-256, создаёт пользователя/директории, устанавливает systemd unit и проверяет health endpoint.
 
+Для уже установленного Docker Engine можно явно включить Docker-модуль:
+
+```bash
+sudo bash install.sh --enable-docker
+```
+
+Параметр требует существующую группу `docker`, добавляет в неё `mini-ubuntu-server` и предупреждает, что Docker socket предоставляет root-equivalent возможности. Без параметра панель возвращает безопасную ошибку `docker_unavailable`.
+
 ## Пути
 
 - binary: `/opt/mini-ubuntu-server/bin/mini-ubuntu-server`;
