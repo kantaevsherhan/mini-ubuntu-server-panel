@@ -1,3 +1,5 @@
+![VibeIDE banner](.github/images/banner.png)
+
 # Mini Ubuntu Server Panel
 
 Web-панель управления Ubuntu Server с backend на Go/Fiber и frontend на Vue 3. Поддерживает Ubuntu `amd64`/`arm64`, устанавливается из GitHub Releases и запускается как `mini-ubuntu-server.service`.
