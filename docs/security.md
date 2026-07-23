@@ -18,7 +18,7 @@
 - параметризованный SQL;
 - аудит входов и административных операций;
 - `sessionStorage` вместо долговременного хранения JWT;
-- `bun audit`, Go checks и CI;
+- `bun audit`, `govulncheck`, CodeQL, Go checks и CI;
 - systemd hardening и отдельный системный пользователь.
 - Docker socket недоступен по умолчанию; opt-in `--enable-docker` документирован как root-equivalent доступ, container IDs/actions проверяются allowlist, remove не использует force и не удаляет volumes.
 - UFW changes проходят двойную allowlist-валидацию, не используют shell, доступны только admin и записываются в аудит; deny порта 22 и enable/disable через web запрещены.
@@ -32,12 +32,13 @@
 
 1. Завершить TLS termination через Caddy/nginx или встроенный TLS.
 2. Перейти на HttpOnly Secure SameSite cookie-сессии, CSRF token и refresh rotation.
-3. Хранить session identifiers в SQLite и добавить revoke/logout-all.
-4. Добавить TOTP/WebAuthn для admin.
-5. Реализовать account lockout с временным окном и безопасной очисткой audit flood.
-6. Ограничить trusted reverse proxies и не доверять входящим forwarding headers по умолчанию.
-7. Подписывать релизы и публиковать SBOM.
-8. Выполнять dependency scanning, CodeQL, secret scanning и fuzz tests.
-9. Провести независимый security review до размещения панели в публичной сети.
+3. Добавить TOTP/WebAuthn для admin.
+4. Реализовать distributed account lockout с временным окном и безопасной очисткой audit flood.
+5. Ограничить trusted reverse proxies и не доверять входящим forwarding headers по умолчанию.
+6. Подписывать релизы и публиковать SBOM.
+7. Добавить secret scanning и fuzz tests к существующим dependency/CodeQL scans.
+8. Провести независимый penetration test до размещения панели в публичной сети.
 
 Ни одна web-панель не может обещать абсолютную защиту. Не публикуйте текущую development-версию напрямую в интернет.
+
+Результат внутреннего review и обязательная production boundary описаны в [security-review.md](security-review.md) и [production.md](production.md).

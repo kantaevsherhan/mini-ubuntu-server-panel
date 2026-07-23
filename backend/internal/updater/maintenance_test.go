@@ -15,7 +15,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/database"
 )
+
+type updateMigrationProbe struct {
+	ID int64 `gorm:"primaryKey"`
+}
 
 func releaseArchive(t *testing.T, name string, content []byte, kind byte) []byte {
 	t.Helper()
@@ -79,8 +85,13 @@ func TestPerformUpdateSuccessAndRollback(t *testing.T) {
 			if err := os.WriteFile(binaryPath, []byte("old-binary"), 0755); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(databasePath, []byte("old-database"), 0640); err != nil {
+			panelDB, err := database.Open(databasePath)
+			if err != nil {
 				t.Fatal(err)
+			}
+			sqlDB, err := panelDB.DB()
+			if err != nil || sqlDB.Close() != nil {
+				t.Fatal("failed to close initial database")
 			}
 			archiveName := "mini-ubuntu-server-linux-" + runtime.GOARCH + ".tar.gz"
 			archive := releaseArchive(t, "mini-ubuntu-server", []byte("new-binary"), tar.TypeReg)
@@ -99,10 +110,21 @@ func TestPerformUpdateSuccessAndRollback(t *testing.T) {
 					return nil
 				},
 				waitHealth: func(context.Context, string) error {
+					migratedDB, openErr := database.Open(databasePath)
+					if openErr != nil {
+						return openErr
+					}
+					if migrationErr := migratedDB.Migrator().CreateTable(&updateMigrationProbe{}); migrationErr != nil {
+						return migrationErr
+					}
+					migratedSQL, sqlErr := migratedDB.DB()
+					if sqlErr != nil {
+						return sqlErr
+					}
+					if closeErr := migratedSQL.Close(); closeErr != nil {
+						return closeErr
+					}
 					if failHealth {
-						if err := os.WriteFile(databasePath, []byte("migrated-database"), 0640); err != nil {
-							t.Fatal(err)
-						}
 						return errors.New("health failed")
 					}
 					return nil
@@ -114,15 +136,21 @@ func TestPerformUpdateSuccessAndRollback(t *testing.T) {
 				DataDir: dataDir, ConfigPath: filepath.Join(root, "config.yml"), Service: defaultService,
 				LockPath: filepath.Join(root, "update.lock"),
 			})
-			err := performUpdate(context.Background(), options, dependencies)
+			err = performUpdate(context.Background(), options, dependencies)
 			binary, _ := os.ReadFile(binaryPath)
-			database, _ := os.ReadFile(databasePath)
+			verifiedDB, openErr := database.Open(databasePath)
+			if openErr != nil {
+				t.Fatal(openErr)
+			}
+			migrationPresent := verifiedDB.Migrator().HasTable(&updateMigrationProbe{})
+			verifiedSQL, _ := verifiedDB.DB()
+			_ = verifiedSQL.Close()
 			if failHealth {
-				if err == nil || string(binary) != "old-binary" || string(database) != "old-database" {
-					t.Fatalf("rollback failed: err=%v binary=%q database=%q", err, binary, database)
+				if err == nil || string(binary) != "old-binary" || migrationPresent {
+					t.Fatalf("rollback failed: err=%v binary=%q migration_present=%t", err, binary, migrationPresent)
 				}
-			} else if err != nil || string(binary) != "new-binary" || string(database) != "old-database" {
-				t.Fatalf("update failed: err=%v binary=%q database=%q", err, binary, database)
+			} else if err != nil || string(binary) != "new-binary" || !migrationPresent {
+				t.Fatalf("update failed: err=%v binary=%q migration_present=%t", err, binary, migrationPresent)
 			}
 			if len(commands) < 2 {
 				t.Fatalf("systemd lifecycle not executed: %#v", commands)

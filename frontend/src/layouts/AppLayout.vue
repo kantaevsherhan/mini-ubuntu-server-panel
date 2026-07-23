@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Drawer from 'primevue/drawer'
@@ -19,6 +19,20 @@ const preferences = usePreferencesStore()
 const { t } = useI18n()
 const userMenu = ref<InstanceType<typeof Menu>>()
 const mobileMenuVisible = ref(false)
+const desktopQuery = window.matchMedia('(min-width: 1024px)')
+const desktop = ref(desktopQuery.matches)
+
+function updateWorkspace(event: MediaQueryList | MediaQueryListEvent) {
+  desktop.value = event.matches
+  if (desktop.value) mobileMenuVisible.value = false
+}
+
+onMounted(() => {
+  updateWorkspace(desktopQuery)
+  desktopQuery.addEventListener('change', updateWorkspace)
+})
+
+onBeforeUnmount(() => desktopQuery.removeEventListener('change', updateWorkspace))
 
 function go(path: string) {
   mobileMenuVisible.value = false
@@ -91,10 +105,10 @@ function saveSidebar(event: { sizes?: number[] }) {
       <template #start>
         <div class="flex items-center gap-3">
           <Button
+            v-if="!desktop"
             icon="pi pi-bars"
             text
             rounded
-            class="lg:hidden"
             aria-label="Open navigation"
             @click="mobileMenuVisible = true"
           />
@@ -124,7 +138,7 @@ function saveSidebar(event: { sizes?: number[] }) {
       <PanelMenu :model="navigation" class="border-0" />
     </Drawer>
 
-    <Splitter class="hidden min-h-0 flex-1 rounded-none border-0 lg:flex" @resizeend="saveSidebar">
+    <Splitter v-if="desktop" class="min-h-0 flex-1 rounded-none border-0" @resizeend="saveSidebar">
       <SplitterPanel :size="sidebarPercent" :min-size="15" class="overflow-auto p-2">
         <PanelMenu :model="navigation" class="border-0" />
       </SplitterPanel>
@@ -132,6 +146,6 @@ function saveSidebar(event: { sizes?: number[] }) {
         <main class="p-5"><RouterView /></main>
       </SplitterPanel>
     </Splitter>
-    <main class="min-h-0 flex-1 overflow-auto p-3 sm:p-5 lg:hidden"><RouterView /></main>
+    <main v-else class="min-h-0 flex-1 overflow-auto p-3 sm:p-5"><RouterView /></main>
   </div>
 </template>

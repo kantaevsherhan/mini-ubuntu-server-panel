@@ -1,4 +1,6 @@
 frontend/node_modules/
+frontend/playwright-report/
+frontend/test-results/
 backend/cmd/mini-ubuntu-server/web/assets/
 backend/cmd/mini-ubuntu-server/web/index.html
 dist/

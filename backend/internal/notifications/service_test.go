@@ -154,11 +154,20 @@ func TestRecoverInFlightDeliveries(t *testing.T) {
 	if err := db.Create(&delivery).Error; err != nil {
 		t.Fatal(err)
 	}
-	service := New(db, &fakeSender{})
+	sender := &fakeSender{}
+	service := New(db, sender)
 	if err := service.RecoverInFlight(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.First(&delivery, delivery.ID).Error; err != nil || delivery.Status != "pending" || delivery.NextAttemptAt == nil {
 		t.Fatalf("delivery was not recovered: %#v err=%v", delivery, err)
+	}
+	processed, err := service.ProcessOnce(context.Background())
+	if err != nil || !processed || len(sender.messages) != 1 {
+		t.Fatalf("recovered delivery was not sent once: processed=%t messages=%d err=%v", processed, len(sender.messages), err)
+	}
+	processed, err = service.ProcessOnce(context.Background())
+	if err != nil || processed || len(sender.messages) != 1 {
+		t.Fatalf("recovered delivery was duplicated: processed=%t messages=%d err=%v", processed, len(sender.messages), err)
 	}
 }

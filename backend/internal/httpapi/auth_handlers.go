@@ -108,6 +108,7 @@ func (a API) logout(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	database.Audit(a.DB, claims.UserID, "auth.logout", "web_session", claims.ID, "{}", c.IP())
 	return c.SendStatus(fiber.StatusNoContent)
 }
 func (a API) sessions(c *fiber.Ctx) error {
@@ -136,6 +137,7 @@ func (a API) revokeSession(c *fiber.Ctx) error {
 	if result.RowsAffected == 0 {
 		return fiber.ErrNotFound
 	}
+	database.Audit(a.DB, claims.UserID, "auth.session.revoke", "web_session", sessionID, "{}", c.IP())
 	return c.SendStatus(fiber.StatusNoContent)
 }
 func (a API) requireRole(roles ...string) fiber.Handler {

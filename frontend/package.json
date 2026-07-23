@@ -9,6 +9,8 @@
     "typecheck": "vue-tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install chromium",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run build"
@@ -27,6 +29,7 @@
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "^22.10.5",
     "@vitejs/plugin-vue": "^5.2.1",
     "autoprefixer": "^10.4.20",

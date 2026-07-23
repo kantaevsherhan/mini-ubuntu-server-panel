@@ -36,7 +36,7 @@ GitHub: `https://github.com/kantaevsherhan/mini-ubuntu-server-panel`.
 
 Backend:
 
-- Go 1.24 и Fiber 2;
+- Go 1.25 и Fiber 2;
 - REST API, JWT и bcrypt;
 - SQLite без CGO;
 - Linux `/proc`, `/sys` и системные API;
@@ -68,7 +68,7 @@ Frontend:
 
 ## Локальная разработка
 
-Требуются Go 1.24+ и Bun 1.3+.
+Требуются Go 1.25+ и Bun 1.3+.
 
 Frontend:
 
@@ -104,9 +104,10 @@ make build VERSION=v0.1.0
 cd frontend
 bun run format
 bun run check
+bun run e2e
 ```
 
-Для Go используются `gofmt`, `go test`, `go vet` и `golangci-lint`. Полная проверка репозитория:
+Для Go используются `gofmt`, `go test`, `go vet`, `golangci-lint` и `govulncheck`. Полная проверка репозитория:
 
 ```bash
 make check
