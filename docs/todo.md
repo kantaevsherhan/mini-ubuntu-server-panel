@@ -29,7 +29,7 @@
 - [ ] Docker SDK, systemd, firewall, processes, logs, files и terminal modules.
 - [ ] WebSocket authentication, origin validation и rate limits.
 - [ ] Settings sections и RBAC-aware navigation.
-- [ ] Versioned SQLite migrations.
+- [x] Versioned embedded SQLite migrations with transactional application tests.
 - [ ] CLI subcommands `update` и `uninstall` внутри binary.
 
 ## Известные ошибки и ограничения

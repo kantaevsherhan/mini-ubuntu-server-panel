@@ -2,85 +2,75 @@ package database
 
 import (
 	"database/sql"
+	"embed"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
 )
 
-const schema = `
-PRAGMA journal_mode=WAL;
-PRAGMA foreign_keys=ON;
-CREATE TABLE IF NOT EXISTS users (
- id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE,
- display_name TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL,
- role TEXT NOT NULL CHECK(role IN ('admin','operator','viewer')),
- is_active INTEGER NOT NULL DEFAULT 1, must_change_password INTEGER NOT NULL DEFAULT 0,
- system_username TEXT, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
- last_login_at DATETIME
-);
-CREATE TABLE IF NOT EXISTS audit_events (
- id INTEGER PRIMARY KEY AUTOINCREMENT, actor_user_id INTEGER, action TEXT NOT NULL,
- target_type TEXT NOT NULL, target_id TEXT, details_json TEXT NOT NULL DEFAULT '{}',
- ip_address TEXT, created_at DATETIME NOT NULL
-);
-CREATE TABLE IF NOT EXISTS web_sessions (
- id TEXT PRIMARY KEY,
- user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
- ip_address TEXT NOT NULL,
- user_agent TEXT NOT NULL,
- created_at DATETIME NOT NULL,
- last_seen_at DATETIME NOT NULL,
- expires_at DATETIME NOT NULL,
- revoked_at DATETIME
-);
-CREATE INDEX IF NOT EXISTS idx_web_sessions_user ON web_sessions(user_id, expires_at);
-CREATE TABLE IF NOT EXISTS telegram_settings (
- id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL DEFAULT 0,
- api_base_url TEXT NOT NULL DEFAULT 'https://api.telegram.org',
- request_timeout_seconds INTEGER NOT NULL DEFAULT 10, retry_count INTEGER NOT NULL DEFAULT 3,
- updated_at DATETIME NOT NULL
-);
-CREATE TABLE IF NOT EXISTS telegram_recipients (
- id INTEGER PRIMARY KEY AUTOINCREMENT, telegram_user_id INTEGER,
- telegram_chat_id INTEGER NOT NULL, display_name TEXT, enabled INTEGER NOT NULL DEFAULT 1,
- receive_alerts INTEGER NOT NULL DEFAULT 1, receive_audit INTEGER NOT NULL DEFAULT 0,
- receive_updates INTEGER NOT NULL DEFAULT 1, created_at DATETIME NOT NULL
-);
-CREATE TABLE IF NOT EXISTS notification_events (
- id INTEGER PRIMARY KEY AUTOINCREMENT, event_key TEXT NOT NULL, severity TEXT NOT NULL,
- payload_json TEXT NOT NULL, dedup_key TEXT, status TEXT NOT NULL DEFAULT 'pending', created_at DATETIME NOT NULL
-);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_event_dedup ON notification_events(dedup_key) WHERE dedup_key IS NOT NULL;
-CREATE TABLE IF NOT EXISTS notification_deliveries (
- id INTEGER PRIMARY KEY AUTOINCREMENT, event_id INTEGER NOT NULL REFERENCES notification_events(id),
- recipient_id INTEGER NOT NULL REFERENCES telegram_recipients(id), status TEXT NOT NULL DEFAULT 'pending',
- attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT, next_attempt_at DATETIME, delivered_at DATETIME,
- created_at DATETIME NOT NULL
-);
-CREATE TABLE IF NOT EXISTS metric_samples (
- id INTEGER PRIMARY KEY AUTOINCREMENT,
- sampled_at DATETIME NOT NULL,
- cpu_percent REAL NOT NULL CHECK(cpu_percent >= 0 AND cpu_percent <= 100),
- memory_percent REAL NOT NULL CHECK(memory_percent >= 0 AND memory_percent <= 100),
- memory_used_bytes INTEGER NOT NULL,
- memory_total_bytes INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_metric_samples_time ON metric_samples(sampled_at);
-INSERT OR IGNORE INTO telegram_settings(id, updated_at) VALUES(1, CURRENT_TIMESTAMP);
-`
+//go:embed migrations/*.sql
+var migrationFiles embed.FS
 
 func Open(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)")
+	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)")
 	if err != nil {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	if _, err = db.Exec(schema); err != nil {
+	if err = migrate(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return db, nil
+}
+
+func migrate(db *sql.DB) error {
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at DATETIME NOT NULL)`); err != nil {
+		return err
+	}
+	entries, err := migrationFiles.ReadDir("migrations")
+	if err != nil {
+		return err
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sql") {
+			names = append(names, entry.Name())
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		var applied bool
+		if err := db.QueryRow(`SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=?)`, name).Scan(&applied); err != nil {
+			return err
+		}
+		if applied {
+			continue
+		}
+		script, err := migrationFiles.ReadFile("migrations/" + name)
+		if err != nil {
+			return err
+		}
+		tx, err := db.Begin()
+		if err != nil {
+			return err
+		}
+		if _, err = tx.Exec(string(script)); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("%s: %w", name, err)
+		}
+		if _, err = tx.Exec(`INSERT INTO schema_migrations(version,applied_at) VALUES(?,?)`, name, time.Now().UTC()); err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err = tx.Commit(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func Audit(db *sql.DB, actor any, action, target, targetID, details, ip string) {
