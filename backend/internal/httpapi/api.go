@@ -54,6 +54,10 @@ func (a API) Register(app *fiber.App) {
 
 	secured := api.Group("", a.authorize)
 	secured.Get("/me", func(c *fiber.Ctx) error { return c.JSON(c.Locals("claims")) })
+	secured.Post("/auth/password", a.changePassword)
+	secured.Post("/auth/logout", a.logout)
+	secured.Get("/auth/sessions", a.sessions)
+	secured.Delete("/auth/sessions/:id", a.revokeSession)
 	secured.Get("/dashboard", a.dashboard)
 	secured.Get("/metrics/history", a.metricsHistory)
 	secured.Get("/users", a.users)
@@ -91,11 +95,14 @@ func (a API) login(c *fiber.Ctx) error {
 		return invalidCredentials(c, a.DB, request.Username)
 	}
 
-	token, err := auth.Sign(a.Secret, id, request.Username, role)
+	token, sessionID, expiresAt, err := auth.Sign(a.Secret, id, request.Username, role)
 	if err != nil {
 		return err
 	}
 	now := time.Now().UTC()
+	if _, err := a.DB.ExecContext(c.UserContext(), `INSERT INTO web_sessions(id,user_id,ip_address,user_agent,created_at,last_seen_at,expires_at) VALUES(?,?,?,?,?,?,?)`, sessionID, id, c.IP(), truncate(c.Get(fiber.HeaderUserAgent), 512), now, now, expiresAt); err != nil {
+		return err
+	}
 	_, _ = a.DB.ExecContext(c.UserContext(), `UPDATE users SET last_login_at=?,updated_at=? WHERE id=?`, now, now, id)
 	database.Audit(a.DB, id, "auth.login", "user", strconv.FormatInt(id, 10), "{}", c.IP())
 	return c.JSON(fiber.Map{"access_token": token, "token_type": "Bearer", "must_change_password": mustChange})
@@ -116,13 +123,106 @@ func (a API) authorize(c *fiber.Ctx) error {
 		return fiber.ErrUnauthorized
 	}
 	var role string
-	var active bool
-	if err := a.DB.QueryRowContext(c.UserContext(), `SELECT role,is_active FROM users WHERE id=?`, claims.UserID).Scan(&role, &active); err != nil || !active {
+	var active, mustChange bool
+	var revokedAt sql.NullTime
+	var sessionExpiry time.Time
+	if err := a.DB.QueryRowContext(c.UserContext(), `SELECT u.role,u.is_active,u.must_change_password,s.revoked_at,s.expires_at FROM users u JOIN web_sessions s ON s.user_id=u.id WHERE u.id=? AND s.id=?`, claims.UserID, claims.ID).Scan(&role, &active, &mustChange, &revokedAt, &sessionExpiry); err != nil || !active || revokedAt.Valid || time.Now().UTC().After(sessionExpiry) {
 		return fiber.ErrUnauthorized
 	}
 	claims.Role = role
 	c.Locals("claims", claims)
+	c.Locals("must_change_password", mustChange)
+	if mustChange && c.Path() != "/api/v1/me" && c.Path() != "/api/v1/auth/password" && c.Path() != "/api/v1/auth/logout" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "password_change_required"})
+	}
 	return c.Next()
+}
+
+func (a API) changePassword(c *fiber.Ctx) error {
+	var request struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+	if err := c.BodyParser(&request); err != nil || len(request.NewPassword) < 12 || len(request.NewPassword) > 1024 || request.CurrentPassword == request.NewPassword {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "password_validation_failed"})
+	}
+	claims := c.Locals("claims").(*auth.Claims)
+	var currentHash string
+	if err := a.DB.QueryRowContext(c.UserContext(), `SELECT password_hash FROM users WHERE id=?`, claims.UserID).Scan(&currentHash); err != nil || !auth.Verify(currentHash, request.CurrentPassword) {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "current_password_invalid"})
+	}
+	newHash, err := auth.Hash(request.NewPassword)
+	if err != nil {
+		return err
+	}
+	tx, err := a.DB.BeginTx(c.UserContext(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(c.UserContext(), `UPDATE users SET password_hash=?,must_change_password=0,updated_at=? WHERE id=?`, newHash, time.Now().UTC(), claims.UserID); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(c.UserContext(), `UPDATE web_sessions SET revoked_at=? WHERE user_id=? AND id<>? AND revoked_at IS NULL`, time.Now().UTC(), claims.UserID, claims.ID); err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	database.Audit(a.DB, claims.UserID, "auth.password.change", "user", strconv.FormatInt(claims.UserID, 10), `{"other_sessions_revoked":true}`, c.IP())
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (a API) logout(c *fiber.Ctx) error {
+	claims := c.Locals("claims").(*auth.Claims)
+	_, err := a.DB.ExecContext(c.UserContext(), `UPDATE web_sessions SET revoked_at=? WHERE id=? AND revoked_at IS NULL`, time.Now().UTC(), claims.ID)
+	if err != nil {
+		return err
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (a API) sessions(c *fiber.Ctx) error {
+	claims := c.Locals("claims").(*auth.Claims)
+	rows, err := a.DB.QueryContext(c.UserContext(), `SELECT id,ip_address,user_agent,created_at,last_seen_at,expires_at FROM web_sessions WHERE user_id=? AND revoked_at IS NULL AND expires_at>? ORDER BY last_seen_at DESC`, claims.UserID, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	result := make([]fiber.Map, 0)
+	for rows.Next() {
+		var id, ipAddress, userAgent string
+		var createdAt, lastSeenAt, expiresAt time.Time
+		if err := rows.Scan(&id, &ipAddress, &userAgent, &createdAt, &lastSeenAt, &expiresAt); err != nil {
+			return err
+		}
+		result = append(result, fiber.Map{"id": id, "ip_address": ipAddress, "user_agent": userAgent, "created_at": createdAt, "last_seen_at": lastSeenAt, "expires_at": expiresAt, "current": id == claims.ID})
+	}
+	return c.JSON(result)
+}
+
+func (a API) revokeSession(c *fiber.Ctx) error {
+	claims := c.Locals("claims").(*auth.Claims)
+	sessionID := c.Params("id")
+	if sessionID == "" || len(sessionID) > 64 {
+		return fiber.ErrBadRequest
+	}
+	result, err := a.DB.ExecContext(c.UserContext(), `UPDATE web_sessions SET revoked_at=? WHERE id=? AND user_id=? AND revoked_at IS NULL`, time.Now().UTC(), sessionID, claims.UserID)
+	if err != nil {
+		return err
+	}
+	changed, _ := result.RowsAffected()
+	if changed == 0 {
+		return fiber.ErrNotFound
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func truncate(value string, maximum int) string {
+	if len(value) <= maximum {
+		return value
+	}
+	return value[:maximum]
 }
 
 func (a API) requireRole(roles ...string) fiber.Handler {

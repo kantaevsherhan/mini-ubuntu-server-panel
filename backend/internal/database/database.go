@@ -24,6 +24,17 @@ CREATE TABLE IF NOT EXISTS audit_events (
  target_type TEXT NOT NULL, target_id TEXT, details_json TEXT NOT NULL DEFAULT '{}',
  ip_address TEXT, created_at DATETIME NOT NULL
 );
+CREATE TABLE IF NOT EXISTS web_sessions (
+ id TEXT PRIMARY KEY,
+ user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ ip_address TEXT NOT NULL,
+ user_agent TEXT NOT NULL,
+ created_at DATETIME NOT NULL,
+ last_seen_at DATETIME NOT NULL,
+ expires_at DATETIME NOT NULL,
+ revoked_at DATETIME
+);
+CREATE INDEX IF NOT EXISTS idx_web_sessions_user ON web_sessions(user_id, expires_at);
 CREATE TABLE IF NOT EXISTS telegram_settings (
  id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL DEFAULT 0,
  api_base_url TEXT NOT NULL DEFAULT 'https://api.telegram.org',

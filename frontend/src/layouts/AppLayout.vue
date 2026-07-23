@@ -47,8 +47,7 @@ const accountItems = computed(() => [
     label: t.value.logout,
     icon: 'pi pi-sign-out',
     command: () => {
-      auth.logout()
-      router.push('/login')
+      auth.logout().then(() => router.push('/login'))
     },
   },
 ])

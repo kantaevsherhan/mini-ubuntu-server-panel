@@ -34,6 +34,15 @@ const messages = {
     month: 'Месяц',
     allTime: 'Всё время',
     noMetrics: 'Метрики появятся после первой минуты работы backend.',
+    changeTemporaryPassword: 'Смените временный пароль',
+    changeTemporaryPasswordHint:
+      'Для продолжения установите новый пароль длиной не менее 12 символов.',
+    currentPassword: 'Текущий пароль',
+    newPassword: 'Новый пароль',
+    confirmPassword: 'Повторите пароль',
+    changePassword: 'Сменить пароль',
+    passwordRequirements: 'Пароли должны совпадать и содержать не менее 12 символов.',
+    passwordChangeFailed: 'Не удалось сменить пароль. Проверьте текущий пароль.',
   },
   en: {
     dashboard: 'Dashboard',
@@ -67,6 +76,14 @@ const messages = {
     month: 'Month',
     allTime: 'All time',
     noMetrics: 'Metrics will appear after the backend runs for one minute.',
+    changeTemporaryPassword: 'Change your temporary password',
+    changeTemporaryPasswordHint: 'Set a new password with at least 12 characters to continue.',
+    currentPassword: 'Current password',
+    newPassword: 'New password',
+    confirmPassword: 'Confirm password',
+    changePassword: 'Change password',
+    passwordRequirements: 'Passwords must match and contain at least 12 characters.',
+    passwordChangeFailed: 'Unable to change the password. Check your current password.',
   },
 } as const
 export function useI18n() {

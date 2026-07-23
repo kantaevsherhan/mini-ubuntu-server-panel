@@ -24,7 +24,7 @@ async function submit() {
   error.value = ''
   try {
     await auth.login(username.value, password.value)
-    router.push('/')
+    router.push(auth.mustChangePassword ? '/change-password' : '/')
   } catch {
     error.value = 'Неверное имя пользователя или пароль'
   } finally {

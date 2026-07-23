@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -22,10 +23,13 @@ func Hash(password string) (string, error) {
 func Verify(hash, password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
-func Sign(secret string, id int64, username, role string) (string, error) {
-	now := time.Now()
-	c := Claims{id, username, role, jwt.RegisteredClaims{IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(8 * time.Hour))}}
-	return jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString([]byte(secret))
+func Sign(secret string, id int64, username, role string) (token, sessionID string, expiresAt time.Time, err error) {
+	now := time.Now().UTC()
+	expiresAt = now.Add(8 * time.Hour)
+	sessionID = uuid.NewString()
+	c := Claims{id, username, role, jwt.RegisteredClaims{ID: sessionID, IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(expiresAt)}}
+	token, err = jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString([]byte(secret))
+	return token, sessionID, expiresAt, err
 }
 func Parse(secret, token string) (*Claims, error) {
 	t, err := jwt.ParseWithClaims(token, &Claims{}, func(t *jwt.Token) (any, error) {

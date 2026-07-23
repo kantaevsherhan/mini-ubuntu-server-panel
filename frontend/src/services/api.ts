@@ -10,6 +10,7 @@ api.interceptors.response.use(
   (e) => {
     if (e.response?.status === 401) {
       sessionStorage.removeItem('access_token')
+      sessionStorage.removeItem('must_change_password')
       if (location.pathname != '/login') location.href = '/login'
     }
     return Promise.reject(e)
