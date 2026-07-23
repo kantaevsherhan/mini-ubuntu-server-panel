@@ -1,0 +1,35 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions: { contents: write }
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: "1.3.14" }
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.23.x" }
+      - run: bun install --frozen-lockfile && bun run build
+        working-directory: frontend
+      - name: Build archives
+        env: { VERSION: "${{ github.ref_name }}" }
+        run: |
+          mkdir -p dist/package
+          for arch in amd64 arm64; do
+            GOOS=linux GOARCH="$arch" CGO_ENABLED=0 go build -C backend -trimpath -ldflags "-s -w -X main.version=$VERSION" -o ../dist/package/mini-ubuntu-server ./cmd/mini-ubuntu-server
+            cp packaging/mini-ubuntu-server.service packaging/config.example.yml dist/package/
+            tar -C dist/package -czf "dist/mini-ubuntu-server-linux-$arch.tar.gz" mini-ubuntu-server mini-ubuntu-server.service config.example.yml
+          done
+          cd dist && sha256sum mini-ubuntu-server-linux-*.tar.gz > checksums.txt
+      - run: cp install.sh uninstall.sh dist/
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/mini-ubuntu-server-linux-amd64.tar.gz
+            dist/mini-ubuntu-server-linux-arm64.tar.gz
+            dist/checksums.txt
+            dist/install.sh
+            dist/uninstall.sh

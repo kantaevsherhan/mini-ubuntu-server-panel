@@ -1,0 +1,7 @@
+frontend/node_modules/
+backend/cmd/mini-ubuntu-server/web/assets/
+dist/
+*.db
+*.db-shm
+*.db-wal
+.env

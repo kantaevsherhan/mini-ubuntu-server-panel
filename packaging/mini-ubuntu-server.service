@@ -1,0 +1,25 @@
+[Unit]
+Description=Mini Ubuntu Server Panel
+Documentation=https://github.com/OWNER/mini-ubuntu-server-panel
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mini-ubuntu-server
+Group=mini-ubuntu-server
+WorkingDirectory=/opt/mini-ubuntu-server
+EnvironmentFile=-/etc/mini-ubuntu-server/secrets.env
+ExecStart=/opt/mini-ubuntu-server/bin/mini-ubuntu-server --config /etc/mini-ubuntu-server/config.yml
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mini-ubuntu-server /var/log/mini-ubuntu-server
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
