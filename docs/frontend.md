@@ -9,6 +9,7 @@ bun run dev
 ```
 
 Vite запускает приложение на `http://localhost:5173` и проксирует `/api` на backend `http://127.0.0.1:8080`.
+Прокси включает WebSocket upgrade для `/api/v1/terminal/ws`.
 
 ## UI
 
@@ -54,3 +55,5 @@ Firewall page использует PrimeVue `DataTable`, `Dialog`, `Select`, `In
 Logs page использует PrimeVue `Select`, `InputText`, `DataTable`, `Column`, `Tag` и `Button`. До 2000 записей отображаются через virtual scroller, timestamps проходят общий Moment.js RU/EN formatter, а локальный поиск не отправляет regex на сервер.
 
 Files page использует PrimeVue `Breadcrumb`, `Select`, virtual `DataTable`, `FileUpload`, `Dialog`, `FloatLabel`, `InputText`, `Message`, `Tag`, `Button` и `ConfirmDialog`. Monaco Editor импортируется только при открытии файла, синхронизирует dark/light mode и размещён в maximizable editor dialog. Upload и destructive actions дают Toast/confirmation feedback.
+
+Terminal page лениво загружает xterm.js вместе с route chunk и использует PrimeVue `Button`, `Tag` и `Message`. Высота и fullscreen state сохраняются в `localStorage`; `ResizeObserver` синхронизирует bounded PTY size. Соединение создаётся только после REST ticket, передаваемого не в URL, а через WebSocket subprotocol. Ошибки ticket-запроса показывает глобальный API Toast, ошибки upgrade — локальный PrimeVue Toast.

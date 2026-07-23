@@ -7,5 +7,9 @@ export default defineConfig({
     outDir: resolve(__dirname, '../backend/cmd/mini-ubuntu-server/web'),
     emptyOutDir: false,
   },
-  server: { proxy: { '/api': 'http://127.0.0.1:8080' } },
+  server: {
+    proxy: {
+      '/api': { target: 'http://127.0.0.1:8080', ws: true },
+    },
+  },
 })

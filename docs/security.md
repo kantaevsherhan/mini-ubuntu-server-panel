@@ -24,6 +24,7 @@
 - UFW changes проходят двойную allowlist-валидацию, не используют shell, доступны только admin и записываются в аудит; deny порта 22 и enable/disable через web запрещены.
 - Journald доступен только admin/operator через allowlist query и exact root-helper; объём ответа и размер сообщения ограничены, дополнительные journal fields отбрасываются.
 - File operations привязаны к root-owned `allowed_directories`, повторно проверяются root-helper, запрещают absolute/parent/symlink traversal, ограничивают объём и используют атомарную запись; file content не попадает в аудит.
+- WebSocket terminal требует admin/operator RBAC и одноразовый ticket в subprotocol header; ticket имеет 30-секундный TTL, SHA-256 in-memory storage, IP/web-session binding и single-use semantics. Upgrade требует exact same-origin; active user, role и web-session revoke/expiry повторно проверяются каждые 30 секунд. Message size/rate, terminal geometry, session duration и concurrent sessions ограничены. PTY непривилегированный, команды и ввод не журналируются.
 
 ## Обязательные меры для production
 
@@ -33,9 +34,8 @@
 4. Добавить TOTP/WebAuthn для admin.
 5. Реализовать account lockout с временным окном и безопасной очисткой audit flood.
 6. Ограничить trusted reverse proxies и не доверять входящим forwarding headers по умолчанию.
-7. Добавить WebSocket origin check, message size/rate limits и per-operation RBAC.
-8. Подписывать релизы и публиковать SBOM.
-9. Выполнять dependency scanning, CodeQL, secret scanning и fuzz tests.
-10. Провести независимый security review до размещения панели в публичной сети.
+7. Подписывать релизы и публиковать SBOM.
+8. Выполнять dependency scanning, CodeQL, secret scanning и fuzz tests.
+9. Провести независимый security review до размещения панели в публичной сети.
 
 Ни одна web-панель не может обещать абсолютную защиту. Не публикуйте текущую development-версию напрямую в интернет.

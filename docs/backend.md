@@ -37,6 +37,8 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 | POST | `/files/directories` | admin/operator |
 | POST | `/files/upload` | admin/operator |
 | DELETE | `/files?root=&path=` | admin/operator |
+| POST | `/terminal/tickets` | admin/operator |
+| WS | `/terminal/ws` | одноразовый ticket, admin/operator |
 | GET | `/users` | authenticated |
 | POST | `/users` | admin |
 | GET | `/system-users` | admin/operator |
@@ -81,6 +83,8 @@ UFW adapter работает только через exact sudoers subcommand `p
 Journald adapter вызывает exact subcommand `privileged-logs`. Unit принимает только корректное имя `.service`, priority и временной диапазон выбираются из allowlist, limit ограничен 1–2000. Root-helper формирует фиксированный массив аргументов `journalctl` без shell, читает JSON lines, пропускает некорректные записи и обрезает каждое сообщение до 8 KiB. В API не возвращаются произвольные journal fields.
 
 Files adapter получает список `allowed_directories` из `config.yml`, а exact `privileged-files` повторно читает тот же root-owned production config после sudo-перехода. Клиент передаёт только индекс корня и относительный путь. Абсолютные пути, `..`, filesystem root, NUL, symlink в любом компоненте и более 5000 записей каталога запрещены. Read/write/upload работают только с UTF-8 text до 2 MiB; запись атомарная с сохранением mode/owner, delete не рекурсивный. Все изменения пишутся в аудит без содержимого файла.
+
+Terminal adapter запускает фиксированный `/bin/bash --noprofile --norc -i` через PTY с правами непривилегированного systemd-пользователя панели. `sudo` и root-helper для терминала намеренно не используются. Сначала authenticated admin/operator получает одноразовый cryptographically random ticket со сроком 30 секунд. Ticket хранится в памяти только как SHA-256, привязан к IP и ID web-сессии, потребляется один раз и передаётся как отдельный `Sec-WebSocket-Protocol`, поэтому не попадает в URL/access log. Upgrade требует точного same-origin, входящие JSON-сообщения ограничены 16 KiB и rate limit, resize имеет bounds, одна сессия живёт не более четырёх часов, на пользователя доступно максимум две сессии. Каждые 30 секунд backend повторно проверяет active user, роль, expiry и revoke web-сессии; потеря доступа закрывает WebSocket и PTY. Аудит фиксирует только start/end без команд и terminal input.
 
 ## Очередь уведомлений
 

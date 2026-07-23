@@ -37,6 +37,11 @@ const router = createRouter({
           meta: { roles: ['admin', 'operator'] },
         },
         {
+          path: 'terminal',
+          component: () => import('../pages/TerminalPage.vue'),
+          meta: { roles: ['admin', 'operator'] },
+        },
+        {
           path: 'users',
           component: () => import('../pages/UsersPage.vue'),
           meta: { roles: ['admin', 'operator'] },

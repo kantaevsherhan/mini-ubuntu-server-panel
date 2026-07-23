@@ -16,6 +16,7 @@ import (
 	secretstore "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/secrets"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/services"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/systemusers"
+	terminalmanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/terminal"
 	"gorm.io/gorm"
 )
 
@@ -31,6 +32,8 @@ type API struct {
 	Firewall    firewall.Controller
 	Logs        logs.Controller
 	Files       filemanager.Controller
+	Terminal    terminalmanager.Controller
+	Tickets     *terminalmanager.TicketStore
 	Secret      string
 	Version     string
 }
@@ -58,6 +61,9 @@ type createUserRequest struct {
 }
 
 func (a API) Register(app *fiber.App) {
+	if a.Tickets == nil {
+		a.Tickets = terminalmanager.NewTicketStore()
+	}
 	api := app.Group("/api/v1")
 	api.Get("/health", a.health)
 	api.Post("/auth/login", limiter.New(limiter.Config{
@@ -68,6 +74,7 @@ func (a API) Register(app *fiber.App) {
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": "too_many_login_attempts"})
 		},
 	}), a.login)
+	api.Get("/terminal/ws", a.terminalUpgrade)
 
 	secured := api.Group("", a.authorize)
 	secured.Get("/me", func(c *fiber.Ctx) error { return c.JSON(c.Locals("claims")) })
@@ -94,6 +101,7 @@ func (a API) Register(app *fiber.App) {
 	secured.Post("/files/directories", a.requireRole("admin", "operator"), a.fileMkdir)
 	secured.Post("/files/upload", a.requireRole("admin", "operator"), a.fileUpload)
 	secured.Delete("/files", a.requireRole("admin", "operator"), a.fileDelete)
+	secured.Post("/terminal/tickets", a.requireRole("admin", "operator"), a.terminalTicket)
 	secured.Get("/users", a.requireRole("admin", "operator"), a.users)
 	secured.Post("/users", a.requireRole("admin"), a.createUser)
 	secured.Patch("/users/:id", a.requireRole("admin"), a.updateUser)

@@ -13,6 +13,7 @@ Go + Fiber
   ├─ /proc and /sys readers
   ├─ Docker SDK
   ├─ systemd / firewall adapters
+  ├─ unprivileged PTY + ticketed WebSocket
   └─ Telegram delivery worker
 ```
 
@@ -27,7 +28,7 @@ Production frontend собирается Bun/Vite и копируется в `ba
 - `scripts` — установка, update, uninstall и release;
 - `.github/workflows` — проверки и публикация релизов.
 
-Fiber API организован по доменам, а не одним монолитным handler-файлом: auth, dashboard/metrics, users/system users, processes, systemd services, Docker, firewall, logs, Telegram, notification rules и audit имеют отдельные исходники. Общий `api.go` отвечает только за зависимости, route registration и health endpoint.
+Fiber API организован по доменам, а не одним монолитным handler-файлом: auth, dashboard/metrics, users/system users, processes, systemd services, Docker, firewall, logs, files, terminal, Telegram, notification rules и audit имеют отдельные исходники. Общий `api.go` отвечает только за зависимости, route registration и health endpoint.
 
 ## Данные
 
@@ -44,3 +45,5 @@ Notification worker использует durable events/deliveries, rule-recipie
 Telegram Bot Token обновляется только через exact subcommand `privileged-secret telegram-token`, сигналы процессам — через `privileged-process`, systemd actions — через `privileged-service`, UFW — через `privileged-firewall`, journald — через `privileged-logs`, allowlisted files — через `privileged-files`. systemd unit панели не использует `NoNewPrivileges`, потому что это заблокировало бы проверенный sudo-переход; фактическое ограничение обеспечивают непривилегированный service user, exact sudoers commands и повторная root-side валидация. `ProtectSystem=strict` сохранён, а writable paths открыты для `/etc` и `/home`, необходимые `useradd` и atomic secrets update; сам service user не имеет Unix-прав записи в эти каталоги.
 
 Docker SDK подключается к стандартному daemon socket. Installer не выдаёт такой доступ по умолчанию: только `--enable-docker` добавляет service user в существующую группу `docker`. Это отдельная root-equivalent граница доверия, а не ограниченная sudo-операция; риск явно показывается при установке и описан в security documentation.
+
+Web-терминал остаётся по непривилегированную сторону границы: PTY наследует UID/GID systemd-сервиса и не вызывает sudo-helper. От REST/JWT слоя к WebSocket передаётся только короткоживущий одноразовый ticket; terminal input не хранится в SQLite и не включается в audit details.

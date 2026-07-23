@@ -44,6 +44,8 @@ sudo systemctl restart mini-ubuntu-server
 sudo journalctl -u mini-ubuntu-server -f
 ```
 
+Web-терминал выполняет команды от имени `mini-ubuntu-server`, поэтому доступ ограничен Unix-правами этого пользователя. Не добавляйте его в `sudo` и не расширяйте sudoers для произвольной shell. При reverse proxy обязательно передавайте WebSocket upgrade для `/api/v1/terminal/ws` и сохраняйте исходный `Host`; браузерный `Origin` должен точно ему соответствовать. TLS termination рекомендуется, чтобы ticket и terminal traffic не передавались открытым текстом.
+
 ## Release
 
 ```bash

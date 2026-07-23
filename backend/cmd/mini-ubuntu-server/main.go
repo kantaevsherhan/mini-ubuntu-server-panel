@@ -32,6 +32,7 @@ import (
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/secrets"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/services"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/systemusers"
+	terminalmanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/terminal"
 	"gorm.io/gorm"
 )
 
@@ -137,6 +138,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	terminalManager, err := terminalmanager.NewManager()
+	if err != nil {
+		log.Fatal(err)
+	}
 	go metrics.NewCollector(db, time.Minute).Start(context.Background())
 	go notifications.New(db, notifications.TelegramSender{DB: db}).Run(context.Background())
 
@@ -167,7 +172,7 @@ func main() {
 	}))
 	app.Use(compress.New())
 
-	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Docker: dockerManager, Firewall: firewallManager, Logs: logManager, Files: filesManager, Secret: cfg.JWTSecret, Version: version}.Register(app)
+	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Docker: dockerManager, Firewall: firewallManager, Logs: logManager, Files: filesManager, Terminal: terminalManager, Secret: cfg.JWTSecret, Version: version}.Register(app)
 	root, err := fs.Sub(web, "web")
 	if err != nil {
 		log.Fatal(err)

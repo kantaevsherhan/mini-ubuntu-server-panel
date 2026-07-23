@@ -98,7 +98,7 @@ Do not use accent colors for health by themselves: server health, warnings and f
 - Main workspace scrolls independently from navigation.
 - Below the `lg` breakpoint, replace the persistent sidebar with PrimeVue `Drawer` and open it with an icon-only PrimeVue `Button`.
 - On mobile, stack dashboard cards and form grids vertically, keep touch targets at least 40px high, and allow data tables to scroll horizontally.
-- Terminal height and editor/terminal fullscreen state must be persisted when implemented.
+- Terminal height and fullscreen state are persisted in `localStorage`; Monaco uses a maximizable PrimeVue dialog.
 - Heavy screens should lazy-load Monaco, xterm.js, and ECharts.
 
 ## Forms
