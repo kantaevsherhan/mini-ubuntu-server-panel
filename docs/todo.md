@@ -41,13 +41,11 @@
 - [x] Все Settings sections: RBAC-filtered PrimeVue Tabs, runtime/storage overview, module links, security/backup guidance и admin-only GitHub Release checker.
 - [x] Добавить минимальные осмысленные micro-interactions: hover/focus для действий и ссылок, обратная связь выбора файла, мягкое раскрытие панелей и изменение статуса; поддержать `prefers-reduced-motion` и исключить декоративные тяжёлые анимации.
 - [x] Versioned embedded SQLite migrations with transactional application tests.
-- [ ] CLI subcommands `update` и `uninstall` внутри binary.
+- [x] CLI subcommands `update` и `uninstall`: checksum, safe extraction, config-aware health, binary+SQLite rollback, lock и default-No removal choices.
 
 ## Известные ошибки и ограничения
 
-- Backend tests покрывают migrations, auth, Telegram, notification worker, processes, systemd, Docker, firewall, logs, files, terminal tickets/origin, валидацию root-helper и compensating rollback; для остальных security flows покрытие ещё требуется.
-- `scripts/update.sh` health-check пока использует порт `8080`, а не читает значение из config.
-- Rollback update восстанавливает binary, но не восстанавливает несовместимую SQLite migration.
+- Backend tests покрывают migrations, auth, Telegram, notification worker, processes, systemd, Docker, firewall, logs, files, terminal tickets/origin, updater success/rollback, валидацию root-helper и compensating rollback; для остальных security flows покрытие ещё требуется.
 - Installer использует GitHub API без authenticated token и может попасть под rate limit.
 - JWT находится в `sessionStorage`; XSS всё ещё может прочитать его. Нужны HttpOnly cookie sessions.
 - Login limiter хранится в памяти и сбрасывается после рестарта.

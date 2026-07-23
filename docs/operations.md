@@ -57,7 +57,16 @@ scripts/release.sh v1.0.0
 ## Backup и update
 
 ```bash
-sudo scripts/update.sh v1.1.0
+sudo mini-ubuntu-server update
+sudo mini-ubuntu-server update --version v1.1.0
 ```
 
-Update сохраняет предыдущий binary и SQLite, останавливает сервис, устанавливает новый binary, запускает сервис и проверяет health. При ошибке binary откатывается. Для production нужно дополнительно проверять SQLite integrity и откатывать несовместимые миграции.
+CLI получает release только из `kantaevsherhan/mini-ubuntu-server-panel`, проверяет archive по `checksums.txt`, останавливает systemd и копирует binary, SQLite, WAL и SHM в timestamped backup. Затем binary заменяется атомарно, при startup выполняются embedded migrations, а health-check использует фактический порт `listen` из config. Если start или health завершается ошибкой, CLI возвращает предыдущий binary и database snapshot и снова запускает сервис. Lock в `/run` блокирует параллельные update.
+
+## Удаление
+
+```bash
+sudo mini-ubuntu-server uninstall
+```
+
+Интерактивный режим независимо спрашивает об application, configuration, SQLite/history, backups и system user. Все destructive дополнительные ответы по умолчанию `No`. Для автоматизации доступен `--yes`; config/data/backups/user удаляются только с отдельными `--remove-*` flags. Тонкие `scripts/update.sh` и `scripts/uninstall.sh` делегируют встроенным CLI-командам и не дублируют maintenance-логику.

@@ -121,8 +121,8 @@ make check
 | Файл | Назначение |
 |---|---|
 | `scripts/install.sh` | установка из GitHub Release и проверка SHA-256 |
-| `scripts/update.sh` | backup, обновление, health-check и rollback |
-| `scripts/uninstall.sh` | интерактивное безопасное удаление |
+| `scripts/update.sh` | тонкий entrypoint для встроенной CLI-команды update |
+| `scripts/uninstall.sh` | тонкий entrypoint для встроенной CLI-команды uninstall |
 | `scripts/release.sh` | проверка и сборка архивов amd64/arm64 |
 
 ## Установка
@@ -186,11 +186,12 @@ sudo journalctl -u mini-ubuntu-server -f
 ## Обновление и удаление
 
 ```bash
-sudo bash scripts/update.sh v1.1.0
-sudo bash scripts/uninstall.sh
+sudo mini-ubuntu-server update
+sudo mini-ubuntu-server update --version v1.1.0
+sudo mini-ubuntu-server uninstall
 ```
 
-Обновление проверяет checksum, создаёт резервную копию бинарного файла и SQLite, перезапускает сервис и выполняет health-check. При ошибке восстанавливается предыдущий бинарный файл. Uninstall по умолчанию сохраняет данные, пока пользователь явно не подтвердит их удаление.
+Installer создаёт `/usr/local/bin/mini-ubuntu-server`, указывающий на production binary. Обновление принимает только release выбранного GitHub-репозитория, проверяет SHA-256, безопасно извлекает только ожидаемый binary, останавливает сервис и сохраняет binary вместе с SQLite/WAL. Health endpoint определяется по порту из `config.yml`; при ошибке восстанавливаются и binary, и согласованный snapshot базы. Uninstall отдельно спрашивает об application, config, SQLite/history, backups и system user; данные и backups по умолчанию сохраняются.
 
 ## Безопасность
 

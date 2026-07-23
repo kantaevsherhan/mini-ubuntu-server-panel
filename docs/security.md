@@ -26,6 +26,7 @@
 - File operations привязаны к root-owned `allowed_directories`, повторно проверяются root-helper, запрещают absolute/parent/symlink traversal, ограничивают объём и используют атомарную запись; file content не попадает в аудит.
 - WebSocket terminal требует admin/operator RBAC и одноразовый ticket в subprotocol header; ticket имеет 30-секундный TTL, SHA-256 in-memory storage, IP/web-session binding и single-use semantics. Upgrade требует exact same-origin; active user, role и web-session revoke/expiry повторно проверяются каждые 30 секунд. Message size/rate, terminal geometry, session duration и concurrent sessions ограничены. PTY непривилегированный, команды и ввод не журналируются.
 - Update check доступен только admin, использует фиксированный HTTPS GitHub API endpoint, 10-секундный timeout, response limit и allowlist version/release URL. Browser не может передать backend произвольный download URL или запустить замену binary через read-only endpoint.
+- Root CLI updater блокирует параллельный запуск, принимает только strict release version, проверяет SHA-256 до extraction, не распаковывает произвольные tar paths, атомарно меняет binary и восстанавливает согласованный stopped-service SQLite/WAL/SHM snapshot при failed start/health. Uninstall ограничен фиксированными путями и default-No confirmations.
 
 ## Обязательные меры для production
 

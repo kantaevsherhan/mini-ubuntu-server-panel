@@ -7,6 +7,7 @@ PORT="8080"
 ADMIN_USERNAME="admin"
 DATA_DIR="/var/lib/mini-ubuntu-server"
 ENABLE_DOCKER=0
+UPDATE=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -15,12 +16,20 @@ while [[ $# -gt 0 ]]; do
     --username) ADMIN_USERNAME="$2"; shift 2 ;;
     --data-dir) DATA_DIR="$2"; shift 2 ;;
     --enable-docker) ENABLE_DOCKER=1; shift ;;
-    --update) exec bash <(curl -fsSL "https://raw.githubusercontent.com/$REPOSITORY/main/scripts/update.sh") ;;
+    --update) UPDATE=1; shift ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
 done
 
 [[ ${EUID} -eq 0 ]] || { echo "Run as root" >&2; exit 1; }
+if [[ "$UPDATE" -eq 1 ]]; then
+  BINARY="/opt/mini-ubuntu-server/bin/mini-ubuntu-server"
+  [[ -x "$BINARY" ]] || { echo "Mini Ubuntu Server Panel is not installed" >&2; exit 1; }
+  if [[ "$VERSION" == "latest" ]]; then
+    exec "$BINARY" update
+  fi
+  exec "$BINARY" update --version "$VERSION"
+fi
 source /etc/os-release
 [[ ${ID:-} == ubuntu ]] || { echo "Ubuntu is required" >&2; exit 1; }
 case "$(dpkg --print-architecture)" in
@@ -55,6 +64,7 @@ curl -fsSL "$BASE/checksums.txt" -o "$TMP_DIR/checksums.txt"
 tar -xzf "$TMP_DIR/$ARCHIVE" -C "$TMP_DIR"
 
 install -o root -g root -m 0755 "$TMP_DIR/mini-ubuntu-server" /opt/mini-ubuntu-server/bin/mini-ubuntu-server
+ln -sfn /opt/mini-ubuntu-server/bin/mini-ubuntu-server /usr/local/bin/mini-ubuntu-server
 install -o root -g root -m 0644 "$TMP_DIR/mini-ubuntu-server.service" /etc/systemd/system/mini-ubuntu-server.service
 visudo -cf "$TMP_DIR/mini-ubuntu-server.sudoers" >/dev/null
 install -o root -g root -m 0440 "$TMP_DIR/mini-ubuntu-server.sudoers" /etc/sudoers.d/mini-ubuntu-server

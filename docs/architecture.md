@@ -46,4 +46,6 @@ Telegram Bot Token обновляется только через exact subcomma
 
 Docker SDK подключается к стандартному daemon socket. Installer не выдаёт такой доступ по умолчанию: только `--enable-docker` добавляет service user в существующую группу `docker`. Это отдельная root-equivalent граница доверия, а не ограниченная sudo-операция; риск явно показывается при установке и описан в security documentation.
 
+Maintenance не проходит через HTTP service: root запускает тот же binary как `mini-ubuntu-server update|uninstall`. Shell-файлы в `scripts/` являются только distribution entrypoints. Update останавливает отдельный systemd process, создаёт stopped-state snapshot базы, атомарно меняет executable и выполняет rollback при неуспешных migrations/start/health.
+
 Web-терминал остаётся по непривилегированную сторону границы: PTY наследует UID/GID systemd-сервиса и не вызывает sudo-helper. От REST/JWT слоя к WebSocket передаётся только короткоживущий одноразовый ticket; terminal input не хранится в SQLite и не включается в audit details.

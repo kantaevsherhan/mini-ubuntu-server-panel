@@ -55,6 +55,8 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 
 Settings overview возвращает только операционный read-only snapshot: hostname/version/runtime, каталоги из уже загруженного config, размер SQLite и агрегированные counts. Admin-only update checker обращается к фиксированному GitHub Releases API URL с timeout и bounded response, принимает только version tag и release URL ожидаемого репозитория; произвольный URL от браузера backend не принимает.
 
+Binary обрабатывает `update` и `uninstall` до запуска HTTP/config bootstrap. Обе команды требуют effective UID 0. Update использует bounded HTTPS downloads, exact version/asset allowlist, SHA-256, safe tar entry extraction, non-blocking process lock, atomic binary replacement и rollback binary+SQLite/WAL/SHM после неуспешного health-check. Uninstall удаляет только фиксированные product paths; config, database, backups и service account остаются до отдельного подтверждения/flag.
+
 HTTP слой разделён по предметным файлам: `auth_handlers.go`, `dashboard_handlers.go`, `user_handlers.go`, `telegram_handlers.go`, `notification_rules.go`, `process_handlers.go` и `audit_handlers.go`. `api.go` содержит только dependency wiring, routes и health-check; новые модули не должны возвращать обработчики в единый большой файл.
 
 `POST /users` поддерживает независимые флаги `create_panel_user` и `create_system_user`. Для Ubuntu-пользователя доступны `system_username`, `home_directory`, `shell`, `system_groups`, `allow_sudo`, `create_home`, `allow_ssh` и `ssh_public_key`. Если системная запись создана, но запись панели сохранить не удалось, backend вызывает компенсирующее удаление системного пользователя и его только что созданной домашней директории.

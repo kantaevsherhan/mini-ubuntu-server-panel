@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -43,6 +44,13 @@ var version = "dev"
 var web embed.FS
 
 func main() {
+	if handled, err := handleMaintenanceCommand(os.Args[1:]); handled {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "maintenance failed:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == "privileged-user" {
 		if err := systemusers.RunPrivileged(os.Stdin); err != nil {
 			log.Fatal(err)
@@ -182,6 +190,57 @@ func main() {
 
 	log.Printf("Mini Ubuntu Server Panel %s listening on %s", version, cfg.Listen)
 	log.Fatal(app.Listen(cfg.Listen))
+}
+
+func handleMaintenanceCommand(arguments []string) (bool, error) {
+	if len(arguments) == 0 {
+		return false, nil
+	}
+	switch arguments[0] {
+	case "update":
+		flags := flag.NewFlagSet("update", flag.ContinueOnError)
+		flags.SetOutput(os.Stderr)
+		requestedVersion := flags.String("version", "latest", "release version such as v1.2.3")
+		configPath := flags.String("config", "/etc/mini-ubuntu-server/config.yml", "configuration file")
+		if err := flags.Parse(arguments[1:]); err != nil {
+			return true, err
+		}
+		if flags.NArg() > 1 {
+			return true, errors.New("update accepts at most one positional version")
+		}
+		if flags.NArg() == 1 {
+			if *requestedVersion != "latest" {
+				return true, errors.New("version specified twice")
+			}
+			*requestedVersion = flags.Arg(0)
+		}
+		if err := updater.RunUpdate(context.Background(), updater.UpdateOptions{Version: *requestedVersion, CurrentVersion: version, ConfigPath: *configPath}); err != nil {
+			return true, err
+		}
+		fmt.Println("Mini Ubuntu Server Panel update completed successfully.")
+		return true, nil
+	case "uninstall":
+		flags := flag.NewFlagSet("uninstall", flag.ContinueOnError)
+		flags.SetOutput(os.Stderr)
+		yes := flags.Bool("yes", false, "remove the application without the interactive application prompt")
+		removeConfig := flags.Bool("remove-config", false, "remove configuration and secrets")
+		removeData := flags.Bool("remove-data", false, "remove SQLite and metric history")
+		removeBackups := flags.Bool("remove-backups", false, "remove backups")
+		removeUser := flags.Bool("remove-user", false, "remove the system user")
+		configPath := flags.String("config", "/etc/mini-ubuntu-server/config.yml", "configuration file")
+		if err := flags.Parse(arguments[1:]); err != nil {
+			return true, err
+		}
+		if flags.NArg() != 0 {
+			return true, errors.New("uninstall does not accept positional arguments")
+		}
+		return true, updater.RunUninstall(context.Background(), updater.UninstallOptions{
+			Yes: *yes, RemoveConfig: *removeConfig, RemoveData: *removeData,
+			RemoveBackups: *removeBackups, RemoveUser: *removeUser, ConfigPath: *configPath,
+		})
+	default:
+		return false, nil
+	}
 }
 
 func safeErrorHandler(c *fiber.Ctx, err error) error {
