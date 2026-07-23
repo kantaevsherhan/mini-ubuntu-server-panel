@@ -36,3 +36,5 @@ SQLite хранит пользователей панели, аудит, Telegra
 ## Границы привилегий
 
 Основной сервис работает от `mini-ubuntu-server`. Создание и удаление Ubuntu-пользователей проходит через subcommand `privileged-user`: sudoers разрешает только точный путь бинарного файла и точное имя subcommand без wildcard. Запрос передаётся JSON через stdin, повторно валидируется уже после перехода к root и выполняется без shell. Произвольные команды из API запрещены.
+
+Telegram Bot Token обновляется только через второй exact subcommand `privileged-secret telegram-token`. systemd не использует `NoNewPrivileges`, потому что это заблокировало бы проверенный sudo-переход; фактическое ограничение обеспечивают непривилегированный service user, два exact sudoers command и повторная root-side валидация. `ProtectSystem=strict` сохранён, а writable paths открыты для `/etc` и `/home`, необходимые `useradd` и atomic secrets update; сам service user не имеет Unix-прав записи в эти каталоги.

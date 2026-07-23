@@ -2,10 +2,10 @@ package notifications
 
 import (
 	"context"
-	"os"
 	"time"
 
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/database"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/secrets"
 	telegramapi "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/telegram"
 	"gorm.io/gorm"
 )
@@ -17,7 +17,7 @@ func (s TelegramSender) Send(ctx context.Context, chatID int64, message string) 
 	if err := s.DB.WithContext(ctx).Where("id = ? AND enabled = ?", 1, true).First(&settings).Error; err != nil {
 		return err
 	}
-	client, err := telegramapi.New(settings.APIBaseURL, os.Getenv("MINI_UBUNTU_SERVER_TELEGRAM_BOT_TOKEN"), time.Duration(settings.RequestTimeoutSeconds)*time.Second)
+	client, err := telegramapi.New(settings.APIBaseURL, secrets.TelegramToken(secrets.DefaultPath), time.Duration(settings.RequestTimeoutSeconds)*time.Second)
 	if err != nil {
 		return err
 	}

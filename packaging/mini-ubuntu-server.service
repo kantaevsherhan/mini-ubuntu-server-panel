@@ -14,11 +14,12 @@ ExecStart=/opt/mini-ubuntu-server/bin/mini-ubuntu-server --config /etc/mini-ubun
 Restart=always
 RestartSec=5
 TimeoutStopSec=30
-NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=read-only
 ProtectSystem=strict
-ReadWritePaths=/var/lib/mini-ubuntu-server /var/log/mini-ubuntu-server
+# The unprivileged service cannot write /etc or /home directly. These paths are
+# writable only so the exact sudoers root-helper can manage users and secrets.
+ReadWritePaths=/etc /home /var/lib/mini-ubuntu-server /var/log/mini-ubuntu-server
 LimitNOFILE=65535
 
 [Install]

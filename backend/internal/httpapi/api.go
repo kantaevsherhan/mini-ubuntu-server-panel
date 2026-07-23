@@ -16,6 +16,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/auth"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/database"
+	secretstore "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/secrets"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/systemusers"
 	telegramapi "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/telegram"
 	"gorm.io/gorm"
@@ -26,6 +27,7 @@ var usernamePattern = regexp.MustCompile(`^[a-z_][a-z0-9_-]{2,31}$`)
 type API struct {
 	DB          *gorm.DB
 	SystemUsers systemusers.Client
+	Secrets     secretstore.Writer
 	Secret      string
 	Version     string
 }
@@ -82,6 +84,7 @@ func (a API) Register(app *fiber.App) {
 	secured.Get("/system-users", a.requireRole("admin", "operator"), a.systemUsers)
 	secured.Get("/telegram/settings", a.requireRole("admin"), a.telegramSettings)
 	secured.Put("/telegram/settings", a.requireRole("admin"), a.updateTelegramSettings)
+	secured.Put("/telegram/token", a.requireRole("admin"), a.updateTelegramToken)
 	secured.Post("/telegram/check", a.requireRole("admin"), a.checkTelegram)
 	secured.Get("/telegram/updates", a.requireRole("admin"), a.telegramUpdates)
 	secured.Get("/telegram/recipients", a.requireRole("admin"), a.telegramRecipients)
@@ -718,7 +721,25 @@ func (a API) telegramSettings(c *fiber.Ctx) error {
 	if err := a.DB.WithContext(c.UserContext()).Model(&database.TelegramRecipient{}).Where("enabled = ?", true).Count(&recipientCount).Error; err != nil {
 		return err
 	}
-	return c.JSON(fiber.Map{"enabled": settings.Enabled, "api_base_url": settings.APIBaseURL, "request_timeout_seconds": settings.RequestTimeoutSeconds, "retry_count": settings.RetryCount, "recipient_count": recipientCount, "token_configured": os.Getenv("MINI_UBUNTU_SERVER_TELEGRAM_BOT_TOKEN") != ""})
+	return c.JSON(fiber.Map{"enabled": settings.Enabled, "api_base_url": settings.APIBaseURL, "request_timeout_seconds": settings.RequestTimeoutSeconds, "retry_count": settings.RetryCount, "recipient_count": recipientCount, "token_configured": secretstore.TelegramToken(secretstore.DefaultPath) != ""})
+}
+
+func (a API) updateTelegramToken(c *fiber.Ctx) error {
+	if a.Secrets == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "secret_writer_unavailable"})
+	}
+	var request struct {
+		Token string `json:"token"`
+	}
+	if err := c.BodyParser(&request); err != nil || secretstore.ValidateTelegramToken(request.Token) != nil {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "telegram_token_invalid"})
+	}
+	if err := a.Secrets.SetTelegramToken(c.UserContext(), request.Token); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "telegram_token_update_failed"})
+	}
+	claims := c.Locals("claims").(*auth.Claims)
+	database.Audit(a.DB, claims.UserID, "telegram.token.update", "telegram", "1", `{"token_changed":true,"token_value":"hidden"}`, c.IP())
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 func (a API) updateTelegramSettings(c *fiber.Ctx) error {
@@ -759,7 +780,7 @@ func (a API) telegramClient(ctx context.Context) (*telegramapi.Client, error) {
 	if err := a.DB.WithContext(ctx).First(&settings, 1).Error; err != nil {
 		return nil, err
 	}
-	return telegramapi.New(settings.APIBaseURL, os.Getenv("MINI_UBUNTU_SERVER_TELEGRAM_BOT_TOKEN"), time.Duration(settings.RequestTimeoutSeconds)*time.Second)
+	return telegramapi.New(settings.APIBaseURL, secretstore.TelegramToken(secretstore.DefaultPath), time.Duration(settings.RequestTimeoutSeconds)*time.Second)
 }
 
 func (a API) checkTelegram(c *fiber.Ctx) error {

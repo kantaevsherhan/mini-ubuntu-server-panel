@@ -24,6 +24,7 @@ import (
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/httpapi"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/metrics"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/notifications"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/secrets"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/systemusers"
 	"gorm.io/gorm"
 )
@@ -36,6 +37,12 @@ var web embed.FS
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "privileged-user" {
 		if err := systemusers.RunPrivileged(os.Stdin); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if len(os.Args) == 3 && os.Args[1] == "privileged-secret" && os.Args[2] == "telegram-token" {
+		if err := secrets.RunPrivilegedTelegramToken(os.Stdin, secrets.DefaultPath); err != nil {
 			log.Fatal(err)
 		}
 		return
@@ -63,6 +70,10 @@ func main() {
 	defer func() { _ = sqlDB.Close() }()
 	bootstrap(db)
 	systemUserClient, err := systemusers.NewSudoClient()
+	if err != nil {
+		log.Fatal(err)
+	}
+	secretWriter, err := secrets.NewSudoWriter()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -96,7 +107,7 @@ func main() {
 	}))
 	app.Use(compress.New())
 
-	httpapi.API{DB: db, SystemUsers: systemUserClient, Secret: cfg.JWTSecret, Version: version}.Register(app)
+	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Secret: cfg.JWTSecret, Version: version}.Register(app)
 	root, err := fs.Sub(web, "web")
 	if err != nil {
 		log.Fatal(err)

@@ -98,7 +98,10 @@ const messages = {
     errorCode: 'Код ошибки',
     telegramConfiguration: 'Конфигурация Telegram',
     telegramTokenHint:
-      'Bot Token задаётся в /etc/mini-ubuntu-server/secrets.env и никогда не возвращается в браузер.',
+      'Bot Token сохраняется root-helper в /etc/mini-ubuntu-server/secrets.env, не попадает в SQLite и никогда не возвращается в браузер.',
+    telegramTokenPlaceholder: 'Вставьте новый Bot Token',
+    updateTelegramToken: 'Обновить Bot Token',
+    telegramTokenUpdated: 'Bot Token безопасно обновлён',
     telegramEnabled: 'Telegram включён',
     configuredHidden: 'Настроен · скрыт',
     notConfigured: 'Не настроен',
@@ -214,7 +217,10 @@ const messages = {
     errorCode: 'Error code',
     telegramConfiguration: 'Telegram configuration',
     telegramTokenHint:
-      'The Bot Token is configured in /etc/mini-ubuntu-server/secrets.env and is never returned to the browser.',
+      'A root helper stores the Bot Token in /etc/mini-ubuntu-server/secrets.env; it never enters SQLite or returns to the browser.',
+    telegramTokenPlaceholder: 'Paste a new Bot Token',
+    updateTelegramToken: 'Update Bot Token',
+    telegramTokenUpdated: 'Bot Token updated securely',
     telegramEnabled: 'Telegram enabled',
     configuredHidden: 'Configured · hidden',
     notConfigured: 'Not configured',

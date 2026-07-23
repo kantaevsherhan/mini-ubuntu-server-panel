@@ -1,2 +1,3 @@
 # Mini Ubuntu Server Panel privileged boundary. Arguments are intentionally exact.
 mini-ubuntu-server ALL=(root) NOPASSWD: /opt/mini-ubuntu-server/bin/mini-ubuntu-server privileged-user
+mini-ubuntu-server ALL=(root) NOPASSWD: /opt/mini-ubuntu-server/bin/mini-ubuntu-server privileged-secret telegram-token

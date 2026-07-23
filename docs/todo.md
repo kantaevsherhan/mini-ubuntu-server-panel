@@ -27,7 +27,7 @@
 - [x] Транзакционное создание panel + Ubuntu user с compensating rollback и integration test.
 - [x] Связь `system_username`: группы, sudo, SSH keys, web/Ubuntu sessions и последний Ubuntu login.
 - [x] Telegram getMe/getUpdates/sendMessage, SSRF-safe transport и recipients UI.
-- [ ] Привилегированное изменение Telegram Bot Token через CLI helper без передачи token в argv, лог или SQLite.
+- [x] Привилегированное изменение Telegram Bot Token через root-helper stdin без передачи token в argv, лог или SQLite.
 - [x] Notification queue worker с delivery status, retry, exponential backoff и dedup.
 - [ ] Notification rules UI: per-event severity, recipients, cooldown, repeat interval и recovery notifications.
 - [ ] Docker SDK, systemd, firewall, processes, logs, files и terminal modules.

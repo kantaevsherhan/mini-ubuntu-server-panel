@@ -27,7 +27,7 @@ case "$(dpkg --print-architecture)" in
 esac
 
 apt-get update -qq
-apt-get install -y -qq ca-certificates curl openssl tar
+apt-get install -y -qq ca-certificates curl openssl sudo tar
 getent group mini-ubuntu-server >/dev/null || groupadd --system mini-ubuntu-server
 id mini-ubuntu-server >/dev/null 2>&1 || useradd --system --gid mini-ubuntu-server --home-dir "$DATA_DIR" --shell /usr/sbin/nologin mini-ubuntu-server
 install -d -o root -g mini-ubuntu-server -m 0750 /opt/mini-ubuntu-server/bin /etc/mini-ubuntu-server
@@ -49,6 +49,8 @@ tar -xzf "$TMP_DIR/$ARCHIVE" -C "$TMP_DIR"
 
 install -o root -g root -m 0755 "$TMP_DIR/mini-ubuntu-server" /opt/mini-ubuntu-server/bin/mini-ubuntu-server
 install -o root -g root -m 0644 "$TMP_DIR/mini-ubuntu-server.service" /etc/systemd/system/mini-ubuntu-server.service
+visudo -cf "$TMP_DIR/mini-ubuntu-server.sudoers" >/dev/null
+install -o root -g root -m 0440 "$TMP_DIR/mini-ubuntu-server.sudoers" /etc/sudoers.d/mini-ubuntu-server
 if [[ ! -f /etc/mini-ubuntu-server/config.yml ]]; then
   sed -e "s/:8080/:$PORT/" -e "s#/var/lib/mini-ubuntu-server#$DATA_DIR#" "$TMP_DIR/config.example.yml" > /etc/mini-ubuntu-server/config.yml
 fi

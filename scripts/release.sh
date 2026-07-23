@@ -22,9 +22,9 @@ for arch in amd64 arm64; do
     -C "$PROJECT_DIR/backend" -trimpath \
     -ldflags "-s -w -X main.version=$VERSION" \
     -o "$PACKAGE_DIR/mini-ubuntu-server" ./cmd/mini-ubuntu-server
-  cp "$PROJECT_DIR/packaging/mini-ubuntu-server.service" "$PROJECT_DIR/packaging/config.example.yml" "$PACKAGE_DIR/"
+  cp "$PROJECT_DIR/packaging/mini-ubuntu-server.service" "$PROJECT_DIR/packaging/mini-ubuntu-server.sudoers" "$PROJECT_DIR/packaging/config.example.yml" "$PACKAGE_DIR/"
   tar -C "$PACKAGE_DIR" -czf "$DIST_DIR/mini-ubuntu-server-linux-$arch.tar.gz" \
-    mini-ubuntu-server mini-ubuntu-server.service config.example.yml
+    mini-ubuntu-server mini-ubuntu-server.service mini-ubuntu-server.sudoers config.example.yml
 done
 
 cd "$DIST_DIR"

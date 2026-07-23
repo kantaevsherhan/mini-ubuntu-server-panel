@@ -26,6 +26,7 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 | GET | `/system-users` | admin/operator |
 | GET | `/users/:id/system-details` | admin/operator |
 | GET/PUT | `/telegram/settings` | admin |
+| PUT | `/telegram/token` | admin |
 | GET | `/audit` | admin |
 
 Ответы об ошибках содержат стабильное поле `error` и не раскрывают внутреннее сообщение Go/SQLite.
@@ -46,6 +47,8 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 - запускает `useradd`/`userdel` через массив аргументов без shell;
 - проверяет формат публичного SSH-ключа и выставляет права `.ssh`/`authorized_keys`;
 - не принимает и не хранит Ubuntu-пароли.
+
+Bot Token изменяется отдельным exact subcommand `privileged-secret telegram-token`. Значение проходит allowlist-валидацию, поступает через stdin, атомарно заменяется в `secrets.env` с сохранением owner/mode и никогда не попадает в argv, SQLite, ответ API или аудит. Telegram client перечитывает файл перед запросом, поэтому restart сервиса не нужен.
 
 ## SQLite и ORM
 

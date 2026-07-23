@@ -12,6 +12,7 @@ import Fluid from 'primevue/fluid'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
+import Password from 'primevue/password'
 import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
 import api from '../services/api'
@@ -48,6 +49,7 @@ const recipients = ref<Recipient[]>([]),
   saving = ref(false),
   editorVisible = ref(false)
 const connection = ref<{ username: string; recipients: number }>()
+const botToken = ref('')
 const editor = reactive<Recipient>({
   telegram_user_id: null,
   telegram_chat_id: 0,
@@ -75,6 +77,17 @@ async function saveSettings() {
   try {
     await api.put('/telegram/settings', settings)
     toast.add({ severity: 'success', summary: t.value.saved, life: 3000 })
+  } finally {
+    saving.value = false
+  }
+}
+async function saveToken() {
+  saving.value = true
+  try {
+    await api.put('/telegram/token', { token: botToken.value })
+    botToken.value = ''
+    settings.token_configured = true
+    toast.add({ severity: 'success', summary: t.value.telegramTokenUpdated, life: 3000 })
   } finally {
     saving.value = false
   }
@@ -148,14 +161,29 @@ onMounted(load)
             <label class="flex items-center gap-3"
               ><ToggleSwitch v-model="settings.enabled" />{{ t.telegramEnabled }}</label
             >
-            <div>
+            <div class="grid gap-3">
               <span class="muted text-sm">Bot Token</span>
-              <div class="mt-2">
+              <div>
                 <Tag
                   :severity="settings.token_configured ? 'success' : 'warn'"
                   :value="settings.token_configured ? t.configuredHidden : t.notConfigured"
                 />
               </div>
+              <Password
+                v-model="botToken"
+                :feedback="false"
+                toggle-mask
+                autocomplete="new-password"
+                :placeholder="t.telegramTokenPlaceholder"
+              />
+              <Button
+                :label="t.updateTelegramToken"
+                icon="pi pi-key"
+                severity="secondary"
+                :disabled="botToken.length < 37"
+                :loading="saving"
+                @click="saveToken"
+              />
             </div>
             <FloatLabel variant="on"
               ><InputText id="telegram-url" v-model="settings.api_base_url" /><label
