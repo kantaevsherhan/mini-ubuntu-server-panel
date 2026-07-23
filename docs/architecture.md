@@ -27,6 +27,8 @@ Production frontend собирается Bun/Vite и копируется в `ba
 - `scripts` — установка, update, uninstall и release;
 - `.github/workflows` — проверки и публикация релизов.
 
+Fiber API организован по доменам, а не одним монолитным handler-файлом: auth, dashboard/metrics, users/system users, Telegram, notification rules и audit имеют отдельные исходники. Общий `api.go` отвечает только за зависимости, route registration и health endpoint.
+
 ## Данные
 
 SQLite хранит пользователей панели, аудит, Telegram-настройки и получателей, события и доставки уведомлений. Ubuntu-пользователи читаются из системных источников и не дублируют пароли в SQLite.

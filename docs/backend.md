@@ -33,6 +33,8 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 
 Ответы об ошибках содержат стабильное поле `error` и не раскрывают внутреннее сообщение Go/SQLite.
 
+HTTP слой разделён по предметным файлам: `auth_handlers.go`, `dashboard_handlers.go`, `user_handlers.go`, `telegram_handlers.go`, `notification_rules.go` и `audit_handlers.go`. `api.go` содержит только dependency wiring, routes и health-check; новые модули не должны возвращать обработчики в единый большой файл.
+
 `POST /users` поддерживает независимые флаги `create_panel_user` и `create_system_user`. Для Ubuntu-пользователя доступны `system_username`, `home_directory`, `shell`, `system_groups`, `allow_sudo`, `create_home`, `allow_ssh` и `ssh_public_key`. Если системная запись создана, но запись панели сохранить не удалось, backend вызывает компенсирующее удаление системного пользователя и его только что созданной домашней директории.
 
 `DELETE /users/:id` принимает `delete_panel_user`, `delete_system_user`, `delete_home_directory`, `delete_ssh_keys` и `terminate_sessions`. Удаление home разрешено только вместе с Ubuntu-пользователем. Если root-helper отклонил системный шаг после удаления panel-записи, backend транзакционно восстанавливает пользователя панели и snapshot его web-сессий.
