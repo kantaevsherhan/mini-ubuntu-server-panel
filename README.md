@@ -2,7 +2,7 @@
 
 Mini Ubuntu Server Panel — web-панель управления Ubuntu Server с backend на Go/Fiber и frontend на Vue 3. Проект ориентирован на Ubuntu 24.04, тёмный desktop-first интерфейс и установку из GitHub Releases.
 
-Проект находится в активной разработке. Готов фундамент авторизации, SQLite, аудита, транзакционного создания panel/Ubuntu-пользователей, Telegram-настроек, очереди и правил уведомлений, dashboard, управление Linux-процессами, systemd-сервисами, Docker-контейнерами, UFW и чтение journald и production-упаковка. Terminal, files и updater worker развиваются поэтапно.
+Проект находится в активной разработке. Готов фундамент авторизации, SQLite, аудита, транзакционного создания panel/Ubuntu-пользователей, Telegram-настроек, очереди и правил уведомлений, dashboard, управление Linux-процессами, systemd-сервисами, Docker-контейнерами, UFW, journald и allowlisted файлами и production-упаковка. Terminal и updater worker развиваются поэтапно.
 
 Dashboard сохраняет минутные CPU/RAM samples из Linux `/proc` в SQLite и показывает ECharts-график за день, неделю, месяц или всё время с серверным downsampling.
 
@@ -15,6 +15,8 @@ Dashboard сохраняет минутные CPU/RAM samples из Linux `/proc`
 Раздел Firewall показывает numbered UFW rules. Operator имеет read-only доступ, admin может добавить строго валидированное inbound `allow`/`deny` правило или удалить правило после подтверждения. Web API не включает и не выключает UFW, а deny стандартного SSH-порта 22 заблокирован.
 
 Раздел «Логи» читает journald через ограниченный root-helper, поддерживает allowlist-фильтры по systemd unit, priority, диапазону и числу строк. Ответ ограничен 2000 строками и 8 KiB на сообщение; интерфейс использует виртуальный скроллинг.
+
+Файловый менеджер работает только с `allowed_directories` из root-owned config. Он поддерживает virtual DataTable, upload, создание папок и UTF-8 файлов до 2 MiB, атомарное сохранение через Monaco Editor и maximizable/fullscreen editor dialog. Absolute/parent/symlink traversal блокируется backend и повторно root-helper.
 
 ## Имена проекта
 

@@ -24,6 +24,7 @@
 - [x] Docker SDK: API negotiation, container list/actions, strict ID/action validation, audit и PrimeVue virtual DataTable.
 - [x] Firewall: UFW status/rules, admin-only mutation, root-side allowlist, SSH port protection, audit и PrimeVue UI.
 - [x] Logs: journald allowlist query через root-helper, bounded structured response, RBAC и PrimeVue virtual DataTable.
+- [x] Files: root-owned directory allowlist, traversal/symlink protection, atomic UTF-8 operations, audit, FileUpload и lazy Monaco editor.
 
 ## В работе / следующий приоритет
 
@@ -35,7 +36,7 @@
 - [x] Привилегированное изменение Telegram Bot Token через root-helper stdin без передачи token в argv, лог или SQLite.
 - [x] Notification queue worker с delivery status, retry, exponential backoff и dedup.
 - [x] Notification rules UI: per-event severity, recipients, cooldown, repeat interval, recovery и delivery history.
-- [ ] Files и terminal modules.
+- [ ] Terminal module.
 - [ ] WebSocket authentication, origin validation и rate limits.
 - [ ] Все Settings sections. RBAC-aware navigation, route guards, account identity и admin-only actions уже готовы.
 - [x] Добавить минимальные осмысленные micro-interactions: hover/focus для действий и ссылок, обратная связь выбора файла, мягкое раскрытие панелей и изменение статуса; поддержать `prefers-reduced-motion` и исключить декоративные тяжёлые анимации.
@@ -44,7 +45,7 @@
 
 ## Известные ошибки и ограничения
 
-- Backend tests покрывают migrations, auth, Telegram, notification worker, processes, systemd, Docker, firewall, logs, валидацию root-helper и compensating rollback; для остальных системных модулей покрытие ещё требуется.
+- Backend tests покрывают migrations, auth, Telegram, notification worker, processes, systemd, Docker, firewall, logs, files, валидацию root-helper и compensating rollback; для terminal и остальных security flows покрытие ещё требуется.
 - `scripts/update.sh` health-check пока использует порт `8080`, а не читает значение из config.
 - Rollback update восстанавливает binary, но не восстанавливает несовместимую SQLite migration.
 - Installer использует GitHub API без authenticated token и может попасть под rate limit.

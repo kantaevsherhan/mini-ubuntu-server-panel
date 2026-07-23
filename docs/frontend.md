@@ -52,3 +52,5 @@ Docker page использует PrimeVue `DataTable`, `Tag`, `Button`, `InputTe
 Firewall page использует PrimeVue `DataTable`, `Dialog`, `Select`, `InputNumber`, `InputText`, `Tag`, `Button` и `ConfirmDialog`. Operator видит правила read-only, элементы изменения отображаются только admin; backend независимо повторяет RBAC и validation.
 
 Logs page использует PrimeVue `Select`, `InputText`, `DataTable`, `Column`, `Tag` и `Button`. До 2000 записей отображаются через virtual scroller, timestamps проходят общий Moment.js RU/EN formatter, а локальный поиск не отправляет regex на сервер.
+
+Files page использует PrimeVue `Breadcrumb`, `Select`, virtual `DataTable`, `FileUpload`, `Dialog`, `FloatLabel`, `InputText`, `Message`, `Tag`, `Button` и `ConfirmDialog`. Monaco Editor импортируется только при открытии файла, синхронизирует dark/light mode и размещён в maximizable editor dialog. Upload и destructive actions дают Toast/confirmation feedback.

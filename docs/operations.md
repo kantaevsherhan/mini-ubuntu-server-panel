@@ -25,6 +25,17 @@ sudo bash install.sh --enable-docker
 - backups: `/var/lib/mini-ubuntu-server/backups`;
 - logs: `/var/log/mini-ubuntu-server`.
 
+Разрешённые корни файлового менеджера задаются только в root-owned `/etc/mini-ubuntu-server/config.yml`:
+
+```yaml
+allowed_directories:
+  - /var/lib/mini-ubuntu-server
+  - /var/log/mini-ubuntu-server
+  - /etc/mini-ubuntu-server
+```
+
+Filesystem root `/`, relative paths и более 32 корней запрещены. Для каталога вне существующих `ReadWritePaths` systemd unit требуется отдельно расширить sandbox и выполнить `systemctl daemon-reload`; не открывайте широкие каталоги без необходимости.
+
 ## Systemd
 
 ```bash

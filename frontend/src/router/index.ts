@@ -32,6 +32,11 @@ const router = createRouter({
           meta: { roles: ['admin', 'operator'] },
         },
         {
+          path: 'files',
+          component: () => import('../pages/FilesPage.vue'),
+          meta: { roles: ['admin', 'operator'] },
+        },
+        {
           path: 'users',
           component: () => import('../pages/UsersPage.vue'),
           meta: { roles: ['admin', 'operator'] },
