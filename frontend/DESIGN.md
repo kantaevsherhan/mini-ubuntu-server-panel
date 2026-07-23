@@ -51,6 +51,35 @@ Do not create native buttons, inputs, selects, textareas, menus, dialogs, cards,
 - Use PrimeVue semantic CSS variables such as `--p-content-background`, `--p-content-border-color`, `--p-text-color`, and `--p-text-muted-color`.
 - Tailwind is for layout, spacing, sizing, overflow, and typography utilities. It must not override PrimeVue control padding, borders, focus rings, or interaction states.
 
+## Color palette
+
+The interface does not maintain a second hardcoded component palette. Aura/Lara owns surfaces and semantic states; application CSS consumes PrimeVue tokens so preset, dark/light mode, and accent changes remain consistent.
+
+| Purpose               | Token or palette                                  | Main reference                             |
+| --------------------- | ------------------------------------------------- | ------------------------------------------ |
+| Dark page background  | `--p-surface-950`                                 | Near-black neutral from the active preset  |
+| Dark primary text     | `--p-surface-100` / `--p-text-color`              | High-contrast neutral                      |
+| Light page background | `--p-surface-50`                                  | Very light neutral from the active preset  |
+| Light primary text    | `--p-surface-900` / `--p-text-color`              | Near-black neutral                         |
+| Cards and dialogs     | `--p-content-background`                          | Preset surface, never a local hex          |
+| Borders and dividers  | `--p-content-border-color`                        | Preset neutral border                      |
+| Secondary text        | `--p-text-muted-color`                            | Muted preset text                          |
+| Selected rows/items   | `--p-highlight-background`, `--p-highlight-color` | Accent-aware highlight                     |
+| Success               | PrimeVue `success` severity                       | Green semantic state plus text/icon        |
+| Information           | PrimeVue `info` severity                          | Blue semantic state plus text/icon         |
+| Warning               | PrimeVue `warn` severity                          | Amber/orange semantic state plus text/icon |
+| Error/destructive     | PrimeVue `danger` severity                        | Red semantic state plus text/icon          |
+
+Selectable primary accents reference PrimeVue primitive tokens across the complete 50–950 scale; the project does not copy their hex values:
+
+| Accent            | Main token      | Hover/emphasis token | Typical use                            |
+| ----------------- | --------------- | -------------------- | -------------------------------------- |
+| Emerald (default) | `{emerald.500}` | `{emerald.600}`      | Primary actions, focus and selection   |
+| Blue              | `{blue.500}`    | `{blue.600}`         | Optional classic infrastructure accent |
+| Violet            | `{violet.500}`  | `{violet.600}`       | Optional high-contrast accent          |
+
+Do not use accent colors for health by themselves: server health, warnings and failures always use PrimeVue semantic severities and visible labels/icons. Exact surface hex values may differ between Aura and Lara by design.
+
 ## Spacing and shape
 
 - Base spacing unit: 4px.
