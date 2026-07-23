@@ -1,2 +1,17 @@
-import { computed,ref } from 'vue';import{defineStore}from'pinia';import api from '../services/api'
-export const useAuthStore=defineStore('auth',()=>{const token=ref(localStorage.getItem('access_token')||'');const authenticated=computed(()=>!!token.value);async function login(username:string,password:string){const{data}=await api.post('/auth/login',{username,password});token.value=data.access_token;localStorage.setItem('access_token',token.value)}function logout(){token.value='';localStorage.removeItem('access_token')}return{token,authenticated,login,logout}})
+import { computed, ref } from 'vue'
+import { defineStore } from 'pinia'
+import api from '../services/api'
+export const useAuthStore = defineStore('auth', () => {
+  const token = ref(sessionStorage.getItem('access_token') || '')
+  const authenticated = computed(() => !!token.value)
+  async function login(username: string, password: string) {
+    const { data } = await api.post('/auth/login', { username, password })
+    token.value = data.access_token
+    sessionStorage.setItem('access_token', token.value)
+  }
+  function logout() {
+    token.value = ''
+    sessionStorage.removeItem('access_token')
+  }
+  return { token, authenticated, login, logout }
+})

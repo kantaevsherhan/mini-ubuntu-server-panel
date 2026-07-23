@@ -2,4 +2,4 @@
 import Toast from 'primevue/toast'
 import ConfirmDialog from 'primevue/confirmdialog'
 </script>
-<template><Toast/><ConfirmDialog/><RouterView/></template>
+<template><Toast /><ConfirmDialog /><RouterView /></template>

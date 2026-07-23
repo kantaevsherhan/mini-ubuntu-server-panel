@@ -1,5 +1,113 @@
 <script setup lang="ts">
-import{computed,ref}from'vue';import{useRoute,useRouter}from'vue-router';import Button from'primevue/button';import Select from'primevue/select';import Menu from'primevue/menu';import Tag from'primevue/tag';import{useAuthStore}from'../stores/auth';import{usePreferencesStore}from'../stores/preferences';import{useI18n}from'../services/i18n'
-const route=useRoute(),router=useRouter(),auth=useAuthStore(),prefs=usePreferencesStore(),{t}=useI18n();const userMenu=ref();const nav=computed(()=>[{key:'dashboard',icon:'pi pi-chart-bar',to:'/'},{key:'docker',icon:'pi pi-box',to:'/docker'},{key:'processes',icon:'pi pi-list',to:'/processes'},{key:'services',icon:'pi pi-cog',to:'/services'},{key:'terminal',icon:'pi pi-desktop',to:'/terminal'},{key:'files',icon:'pi pi-folder',to:'/files'},{key:'users',icon:'pi pi-users',to:'/users'},{key:'firewall',icon:'pi pi-shield',to:'/firewall'},{key:'logs',icon:'pi pi-align-left',to:'/logs'},{key:'audit',icon:'pi pi-history',to:'/audit'},{key:'notifications',icon:'pi pi-bell',to:'/notifications'},{key:'settings',icon:'pi pi-sliders-h',to:'/settings'}]);const menuItems=computed(()=>[{label:t.value.settings,icon:'pi pi-cog',command:()=>router.push('/settings')},{separator:true},{label:t.value.logout,icon:'pi pi-sign-out',command:()=>{auth.logout();router.push('/login')}}]);let dragging=false;function startResize(){dragging=true;window.addEventListener('mousemove',resize);window.addEventListener('mouseup',stop)}function resize(e:MouseEvent){if(dragging)prefs.sidebarWidth=Math.min(380,Math.max(190,e.clientX))}function stop(){dragging=false;window.removeEventListener('mousemove',resize);window.removeEventListener('mouseup',stop)}
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import Button from 'primevue/button'
+import Drawer from 'primevue/drawer'
+import Menubar from 'primevue/menubar'
+import Menu from 'primevue/menu'
+import PanelMenu from 'primevue/panelmenu'
+import Splitter from 'primevue/splitter'
+import SplitterPanel from 'primevue/splitterpanel'
+import Tag from 'primevue/tag'
+import { useAuthStore } from '../stores/auth'
+import { usePreferencesStore } from '../stores/preferences'
+import { useI18n } from '../services/i18n'
+
+const router = useRouter()
+const auth = useAuthStore()
+const preferences = usePreferencesStore()
+const { t } = useI18n()
+const userMenu = ref<InstanceType<typeof Menu>>()
+const mobileMenuVisible = ref(false)
+
+function go(path: string) {
+  mobileMenuVisible.value = false
+  router.push(path)
+}
+
+const navigation = computed(() => [
+  { label: t.value.dashboard, icon: 'pi pi-chart-bar', command: () => go('/') },
+  { label: t.value.docker, icon: 'pi pi-box', command: () => go('/docker') },
+  { label: t.value.processes, icon: 'pi pi-list', command: () => go('/processes') },
+  { label: t.value.services, icon: 'pi pi-cog', command: () => go('/services') },
+  { label: t.value.terminal, icon: 'pi pi-desktop', command: () => go('/terminal') },
+  { label: t.value.files, icon: 'pi pi-folder', command: () => go('/files') },
+  { label: t.value.users, icon: 'pi pi-users', command: () => go('/users') },
+  { label: t.value.firewall, icon: 'pi pi-shield', command: () => go('/firewall') },
+  { label: t.value.logs, icon: 'pi pi-align-left', command: () => go('/logs') },
+  { label: t.value.audit, icon: 'pi pi-history', command: () => go('/audit') },
+  { label: t.value.notifications, icon: 'pi pi-bell', command: () => go('/notifications') },
+  { label: t.value.settings, icon: 'pi pi-sliders-h', command: () => go('/settings') },
+])
+
+const accountItems = computed(() => [
+  { label: t.value.settings, icon: 'pi pi-cog', command: () => router.push('/settings') },
+  { separator: true },
+  {
+    label: t.value.logout,
+    icon: 'pi pi-sign-out',
+    command: () => {
+      auth.logout()
+      router.push('/login')
+    },
+  },
+])
+
+const sidebarPercent = computed(() => Math.min(30, Math.max(15, preferences.sidebarWidth / 12)))
+
+function saveSidebar(event: { sizes?: number[] }) {
+  const firstPanel = event.sizes?.[0]
+  if (firstPanel) preferences.sidebarWidth = Math.round(firstPanel * 12)
+}
 </script>
-<template><div class="h-full flex flex-col"><header class="h-14 shrink-0 border-b border-[var(--p-content-border-color)] bg-[var(--p-content-background)] flex items-center px-4 gap-4"><i class="pi pi-server text-primary text-xl"/><strong>Mini Ubuntu Server Panel</strong><span class="muted text-sm">Ubuntu 24.04</span><span class="flex-1"/><Tag severity="success"><i class="pi pi-circle-fill text-[8px] mr-2"/>{{t.online}}</Tag><Button label="admin" icon="pi pi-user" icon-pos="right" text @click="userMenu.toggle($event)"/><Menu ref="userMenu" :model="menuItems" popup/></header><div class="flex min-h-0 flex-1"><aside :style="{width:prefs.sidebarWidth+'px'}" class="relative shrink-0 border-r border-[var(--p-content-border-color)] bg-[var(--p-content-background)] p-2"><nav class="space-y-1"><RouterLink v-for="item in nav" :key="item.key" :to="item.to" class="flex items-center gap-3 rounded px-3 py-2 text-sm no-underline text-[var(--p-text-color)] hover:bg-[var(--p-content-hover-background)]" :class="{'bg-[var(--p-highlight-background)] text-[var(--p-highlight-color)]':route.path===item.to}"><i :class="item.icon" class="w-4"/><span>{{t[item.key as keyof typeof t]}}</span></RouterLink></nav><div class="absolute right-[-3px] top-0 h-full w-[6px] cursor-col-resize" @mousedown="startResize"/></aside><main class="min-w-0 flex-1 overflow-auto p-5"><RouterView/></main></div></div></template>
+
+<template>
+  <div class="flex h-full flex-col">
+    <Menubar :model="[]" class="shrink-0 rounded-none border-x-0 border-t-0">
+      <template #start>
+        <div class="flex items-center gap-3">
+          <Button
+            icon="pi pi-bars"
+            text
+            rounded
+            class="lg:hidden"
+            aria-label="Open navigation"
+            @click="mobileMenuVisible = true"
+          />
+          <i class="pi pi-server text-xl text-primary" />
+          <strong class="hidden sm:inline">Mini Ubuntu Server Panel</strong>
+          <span class="muted hidden text-sm md:inline">Ubuntu 24.04</span>
+        </div>
+      </template>
+      <template #end>
+        <div class="flex items-center gap-2">
+          <Tag severity="success" class="hidden sm:inline-flex">
+            <i class="pi pi-circle-fill mr-2 text-[8px]" />{{ t.online }}
+          </Tag>
+          <Button
+            label="admin"
+            icon="pi pi-user"
+            icon-pos="right"
+            text
+            @click="userMenu?.toggle($event)"
+          />
+          <Menu ref="userMenu" :model="accountItems" popup />
+        </div>
+      </template>
+    </Menubar>
+
+    <Drawer v-model:visible="mobileMenuVisible" position="left" header="Mini Ubuntu Server">
+      <PanelMenu :model="navigation" class="border-0" />
+    </Drawer>
+
+    <Splitter class="hidden min-h-0 flex-1 rounded-none border-0 lg:flex" @resizeend="saveSidebar">
+      <SplitterPanel :size="sidebarPercent" :min-size="15" class="overflow-auto p-2">
+        <PanelMenu :model="navigation" class="border-0" />
+      </SplitterPanel>
+      <SplitterPanel :size="100 - sidebarPercent" :min-size="60" class="overflow-auto">
+        <main class="p-5"><RouterView /></main>
+      </SplitterPanel>
+    </Splitter>
+    <main class="min-h-0 flex-1 overflow-auto p-3 sm:p-5 lg:hidden"><RouterView /></main>
+  </div>
+</template>

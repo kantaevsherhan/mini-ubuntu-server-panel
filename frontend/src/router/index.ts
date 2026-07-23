@@ -1,2 +1,26 @@
-import{createRouter,createWebHistory}from'vue-router';import AppLayout from '../layouts/AppLayout.vue';import DashboardPage from '../pages/DashboardPage.vue';import UsersPage from '../pages/UsersPage.vue';import SettingsPage from '../pages/SettingsPage.vue';import PlaceholderPage from '../pages/PlaceholderPage.vue';import LoginPage from '../pages/LoginPage.vue'
-const router=createRouter({history:createWebHistory(),routes:[{path:'/login',component:LoginPage},{path:'/',component:AppLayout,children:[{path:'',component:DashboardPage},{path:'users',component:UsersPage},{path:'settings',component:SettingsPage},{path:':section',component:PlaceholderPage}]}]});router.beforeEach(to=>{if(to.path!='/login'&&!localStorage.getItem('access_token'))return'/login';if(to.path==='/login'&&localStorage.getItem('access_token'))return'/'});export default router
+import { createRouter, createWebHistory } from 'vue-router'
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes: [
+    { path: '/login', component: () => import('../pages/LoginPage.vue') },
+    {
+      path: '/',
+      component: () => import('../layouts/AppLayout.vue'),
+      children: [
+        { path: '', component: () => import('../pages/DashboardPage.vue') },
+        { path: 'users', component: () => import('../pages/UsersPage.vue') },
+        { path: 'settings', component: () => import('../pages/SettingsPage.vue') },
+        { path: ':section', component: () => import('../pages/PlaceholderPage.vue') },
+      ],
+    },
+  ],
+})
+
+router.beforeEach((to) => {
+  const authenticated = Boolean(sessionStorage.getItem('access_token'))
+  if (to.path !== '/login' && !authenticated) return '/login'
+  if (to.path === '/login' && authenticated) return '/'
+})
+
+export default router

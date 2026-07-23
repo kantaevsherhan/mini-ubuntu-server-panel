@@ -9,5 +9,18 @@ import './styles/main.css'
 import App from './App.vue'
 import router from './router'
 
-const app=createApp(App)
-app.use(createPinia()).use(router).use(PrimeVue,{theme:{preset:Aura,options:{darkModeSelector:'[data-theme="dark"]',cssLayer:{name:'primevue',order:'theme, base, primevue'}}}}).use(ToastService).use(ConfirmationService).mount('#app')
+const app = createApp(App)
+app
+  .use(createPinia())
+  .use(router)
+  .use(PrimeVue, {
+    theme: {
+      preset: Aura,
+      options: {
+        darkModeSelector: '[data-theme="dark"]',
+      },
+    },
+  })
+  .use(ToastService)
+  .use(ConfirmationService)
+  .mount('#app')
