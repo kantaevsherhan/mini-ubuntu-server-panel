@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const maxRequestBytes = 32 * 1024
@@ -36,6 +37,18 @@ type User struct {
 	Groups   []string `json:"groups"`
 	HasSudo  bool     `json:"has_sudo"`
 	HasSSH   bool     `json:"has_ssh_keys"`
+}
+
+type Session struct {
+	Terminal  string    `json:"terminal"`
+	RemoteIP  string    `json:"remote_ip"`
+	StartedAt time.Time `json:"started_at"`
+}
+
+type Details struct {
+	User
+	ActiveSessions []Session  `json:"active_sessions"`
+	LastLoginAt    *time.Time `json:"last_login_at"`
 }
 
 type CreateRequest struct {
@@ -385,6 +398,129 @@ func List() ([]User, error) {
 		})
 	}
 	return result, scanner.Err()
+}
+
+func Get(username string) (Details, error) {
+	if !usernamePattern.MatchString(username) {
+		return Details{}, ErrInvalidRequest
+	}
+	account, err := user.Lookup(username)
+	if err != nil {
+		return Details{}, err
+	}
+	uid, err := strconv.Atoi(account.Uid)
+	if err != nil {
+		return Details{}, err
+	}
+	gid, err := strconv.Atoi(account.Gid)
+	if err != nil {
+		return Details{}, err
+	}
+	groups, err := userGroups(username)
+	if err != nil {
+		return Details{}, err
+	}
+	shell, err := userShell(username)
+	if err != nil {
+		return Details{}, err
+	}
+	sessions, err := activeSessions(username)
+	if err != nil {
+		return Details{}, err
+	}
+	lastLogin, err := lastLogin(username)
+	if err != nil {
+		return Details{}, err
+	}
+	return Details{
+		User: User{Username: username, UID: uid, GID: gid, Home: account.HomeDir, Shell: shell,
+			Groups: groups, HasSudo: contains(groups, "sudo"), HasSSH: hasSSHKeys(account.HomeDir)},
+		ActiveSessions: sessions, LastLoginAt: lastLogin,
+	}, nil
+}
+
+func userShell(username string) (string, error) {
+	file, err := os.Open("/etc/passwd")
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = file.Close() }()
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		parts := strings.Split(scanner.Text(), ":")
+		if len(parts) == 7 && parts[0] == username {
+			return parts[6], nil
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+	return "", user.UnknownUserError(username)
+}
+
+func activeSessions(username string) ([]Session, error) {
+	command := exec.Command("/usr/bin/who", "--ips")
+	command.Env = append(os.Environ(), "LC_ALL=C")
+	output, err := command.Output()
+	if err != nil {
+		return nil, err
+	}
+	return parseWho(username, string(output)), nil
+}
+
+func parseWho(username, output string) []Session {
+	result := make([]Session, 0)
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 4 || fields[0] != username {
+			continue
+		}
+		startedAt, err := time.ParseInLocation("2006-01-02 15:04", fields[2]+" "+fields[3], time.Local)
+		if err != nil {
+			continue
+		}
+		remoteIP := ""
+		if len(fields) >= 5 {
+			remoteIP = strings.Trim(fields[len(fields)-1], "()")
+		}
+		result = append(result, Session{Terminal: fields[1], RemoteIP: remoteIP, StartedAt: startedAt.UTC()})
+	}
+	return result
+}
+
+func lastLogin(username string) (*time.Time, error) {
+	command := exec.Command("/usr/bin/last", "-F", "-n", "1", "--", username)
+	command.Env = append(os.Environ(), "LC_ALL=C")
+	output, err := command.Output()
+	if err != nil {
+		return nil, err
+	}
+	return parseLastLogin(string(output)), nil
+}
+
+var lastDatePattern = regexp.MustCompile(`(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [ 0-9][0-9] [0-9]{2}:[0-9]{2}:[0-9]{2} [0-9]{4}`)
+
+func parseLastLogin(output string) *time.Time {
+	var loginLine string
+	for _, line := range strings.Split(output, "\n") {
+		if strings.TrimSpace(line) != "" {
+			loginLine = line
+			break
+		}
+	}
+	if loginLine == "" || strings.HasPrefix(loginLine, "wtmp ") {
+		return nil
+	}
+	match := lastDatePattern.FindString(loginLine)
+	if match == "" {
+		return nil
+	}
+	value, err := time.ParseInLocation("Mon Jan _2 15:04:05 2006", match, time.Local)
+	if err != nil {
+		return nil
+	}
+	utc := value.UTC()
+	return &utc
 }
 
 func userGroups(username string) ([]string, error) {

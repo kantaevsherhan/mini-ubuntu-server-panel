@@ -78,6 +78,7 @@ func (a API) Register(app *fiber.App) {
 	secured.Delete("/users/:id", a.requireRole("admin"), a.deleteUser)
 	secured.Post("/users/:id/reset-password", a.requireRole("admin"), a.resetUserPassword)
 	secured.Get("/users/:id/sessions", a.requireRole("admin"), a.userSessions)
+	secured.Get("/users/:id/system-details", a.requireRole("admin", "operator"), a.userSystemDetails)
 	secured.Get("/system-users", a.requireRole("admin", "operator"), a.systemUsers)
 	secured.Get("/telegram/settings", a.requireRole("admin"), a.telegramSettings)
 	secured.Put("/telegram/settings", a.requireRole("admin"), a.updateTelegramSettings)
@@ -662,6 +663,28 @@ func (a API) userSessions(c *fiber.Ctx) error {
 		result = append(result, fiber.Map{"id": session.ID, "ip_address": session.IPAddress, "user_agent": session.UserAgent, "created_at": session.CreatedAt, "last_seen_at": session.LastSeenAt, "expires_at": session.ExpiresAt, "revoked_at": session.RevokedAt})
 	}
 	return c.JSON(result)
+}
+
+func (a API) userSystemDetails(c *fiber.Ctx) error {
+	targetID, err := parseID(c.Params("id"))
+	if err != nil {
+		return fiber.ErrBadRequest
+	}
+	var target database.User
+	if err := a.DB.WithContext(c.UserContext()).First(&target, targetID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fiber.ErrNotFound
+		}
+		return err
+	}
+	if target.SystemUsername == nil {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "system_user_not_linked"})
+	}
+	details, err := systemusers.Get(*target.SystemUsername)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "system_user_not_found"})
+	}
+	return c.JSON(details)
 }
 
 func (a API) isLastActiveAdmin(ctx context.Context, excludedID int64) (bool, error) {

@@ -13,6 +13,11 @@ import MultiSelect from 'primevue/multiselect'
 import Password from 'primevue/password'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
+import Tab from 'primevue/tab'
+import TabList from 'primevue/tablist'
+import TabPanel from 'primevue/tabpanel'
+import TabPanels from 'primevue/tabpanels'
+import Tabs from 'primevue/tabs'
 import Textarea from 'primevue/textarea'
 import ToggleSwitch from 'primevue/toggleswitch'
 import api from '../services/api'
@@ -40,8 +45,22 @@ interface WebSession {
   revoked_at: string | null
 }
 
+interface SystemDetails {
+  username: string
+  uid: number
+  gid: number
+  home: string
+  shell: string
+  groups: string[]
+  has_sudo: boolean
+  has_ssh_keys: boolean
+  last_login_at: string | null
+  active_sessions: Array<{ terminal: string; remote_ip: string; started_at: string }>
+}
+
 const users = ref<PanelUser[]>([])
 const sessions = ref<WebSession[]>([])
+const systemDetails = ref<SystemDetails>()
 const loading = ref(true)
 const saving = ref(false)
 const editorVisible = ref(false)
@@ -166,7 +185,15 @@ async function submitReset() {
 
 async function showSessions(user: PanelUser) {
   selected.value = user
-  sessions.value = (await api.get(`/users/${user.id}/sessions`)).data
+  systemDetails.value = undefined
+  const webRequest = api.get<WebSession[]>(`/users/${user.id}/sessions`)
+  const systemRequest = user.system_username
+    ? api.get<SystemDetails>(`/users/${user.id}/system-details`)
+    : Promise.resolve(null)
+  const [webResult, systemResult] = await Promise.allSettled([webRequest, systemRequest])
+  if (webResult.status === 'fulfilled') sessions.value = webResult.value.data
+  if (systemResult.status === 'fulfilled' && systemResult.value)
+    systemDetails.value = systemResult.value.data
   sessionsVisible.value = true
 }
 
@@ -464,19 +491,88 @@ onMounted(load)
       :header="`${t.sessions}: ${selected?.username || ''}`"
       :style="{ width: '60rem' }"
     >
-      <DataTable :value="sessions" size="small" scrollable
-        ><Column field="ip_address" header="IP" /><Column
-          field="user_agent"
-          header="User Agent" /><Column :header="t.lastActivity"
-          ><template #body="{ data }">{{
-            formatDateTime(data.last_seen_at, locale)
-          }}</template></Column
-        ><Column :header="t.status"
-          ><template #body="{ data }"
-            ><Tag
-              :severity="data.revoked_at ? 'secondary' : 'success'"
-              :value="data.revoked_at ? t.revoked : t.active" /></template></Column
-      ></DataTable>
+      <Tabs value="web">
+        <TabList>
+          <Tab value="web">{{ t.webSessions }}</Tab>
+          <Tab v-if="selected?.system_username" value="system">{{ t.ubuntuDetails }}</Tab>
+        </TabList>
+        <TabPanels>
+          <TabPanel value="web">
+            <DataTable :value="sessions" size="small" scrollable>
+              <Column field="ip_address" header="IP" />
+              <Column field="user_agent" header="User Agent" />
+              <Column :header="t.lastActivity">
+                <template #body="{ data }">{{
+                  formatDateTime(data.last_seen_at, locale)
+                }}</template>
+              </Column>
+              <Column :header="t.status">
+                <template #body="{ data }">
+                  <Tag
+                    :severity="data.revoked_at ? 'secondary' : 'success'"
+                    :value="data.revoked_at ? t.revoked : t.active"
+                  />
+                </template>
+              </Column>
+            </DataTable>
+          </TabPanel>
+          <TabPanel v-if="selected?.system_username" value="system">
+            <div v-if="systemDetails" class="grid gap-5">
+              <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <span class="text-muted-color">UID / GID</span><br />{{ systemDetails.uid }} /
+                  {{ systemDetails.gid }}
+                </div>
+                <div>
+                  <span class="text-muted-color">Shell</span><br />{{ systemDetails.shell }}
+                </div>
+                <div>
+                  <span class="text-muted-color">{{ t.sudo }}</span
+                  ><br /><Tag
+                    :severity="systemDetails.has_sudo ? 'success' : 'secondary'"
+                    :value="systemDetails.has_sudo ? t.allowed : t.notAllowed"
+                  />
+                </div>
+                <div>
+                  <span class="text-muted-color">SSH</span><br /><Tag
+                    :severity="systemDetails.has_ssh_keys ? 'success' : 'secondary'"
+                    :value="systemDetails.has_ssh_keys ? t.keysConfigured : t.noKeys"
+                  />
+                </div>
+                <div class="sm:col-span-2">
+                  <span class="text-muted-color">{{ t.homeDirectory }}</span
+                  ><br />{{ systemDetails.home }}
+                </div>
+                <div class="sm:col-span-2">
+                  <span class="text-muted-color">{{ t.lastUbuntuLogin }}</span
+                  ><br />{{ formatDateTime(systemDetails.last_login_at, locale) }}
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <Tag
+                  v-for="group in systemDetails.groups"
+                  :key="group"
+                  :value="group"
+                  severity="secondary"
+                />
+              </div>
+              <DataTable
+                :value="systemDetails.active_sessions"
+                size="small"
+                :empty-message="t.noActiveSessions"
+              >
+                <Column field="terminal" :header="t.terminal" />
+                <Column field="remote_ip" header="IP" />
+                <Column :header="t.startedAt"
+                  ><template #body="{ data }">{{
+                    formatDateTime(data.started_at, locale)
+                  }}</template></Column
+                >
+              </DataTable>
+            </div>
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
     </Dialog>
   </section>
 </template>

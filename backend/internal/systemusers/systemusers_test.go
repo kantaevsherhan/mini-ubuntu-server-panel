@@ -50,3 +50,20 @@ func TestValidSSHKey(t *testing.T) {
 		t.Fatal("authorized_keys options must not be accepted")
 	}
 }
+
+func TestParseWhoFiltersUserAndNormalizesTime(t *testing.T) {
+	sessions := parseWho("alice", "alice pts/0 2026-07-23 18:30 (192.0.2.10)\nbob pts/1 2026-07-23 18:31 (192.0.2.11)\n")
+	if len(sessions) != 1 || sessions[0].Terminal != "pts/0" || sessions[0].RemoteIP != "192.0.2.10" {
+		t.Fatalf("unexpected sessions: %#v", sessions)
+	}
+}
+
+func TestParseLastLogin(t *testing.T) {
+	value := parseLastLogin("alice pts/0 192.0.2.10 Thu Jul 23 18:30:01 2026 - Thu Jul 23 18:40:00 2026 (00:09)\n")
+	if value == nil || value.Year() != 2026 || value.Month() != 7 || value.Day() != 23 {
+		t.Fatalf("unexpected last login: %v", value)
+	}
+	if value := parseLastLogin("wtmp begins Thu Jul 23 00:00:00 2026"); value != nil {
+		t.Fatalf("wtmp header must not be treated as a login: %v", value)
+	}
+}

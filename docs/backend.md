@@ -24,6 +24,7 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 | GET | `/users` | authenticated |
 | POST | `/users` | admin |
 | GET | `/system-users` | admin/operator |
+| GET | `/users/:id/system-details` | admin/operator |
 | GET/PUT | `/telegram/settings` | admin |
 | GET | `/audit` | admin |
 
@@ -32,6 +33,8 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 `POST /users` поддерживает независимые флаги `create_panel_user` и `create_system_user`. Для Ubuntu-пользователя доступны `system_username`, `home_directory`, `shell`, `system_groups`, `allow_sudo`, `create_home`, `allow_ssh` и `ssh_public_key`. Если системная запись создана, но запись панели сохранить не удалось, backend вызывает компенсирующее удаление системного пользователя и его только что созданной домашней директории.
 
 `DELETE /users/:id` принимает `delete_panel_user`, `delete_system_user`, `delete_home_directory`, `delete_ssh_keys` и `terminate_sessions`. Удаление home разрешено только вместе с Ubuntu-пользователем. Если root-helper отклонил системный шаг после удаления panel-записи, backend транзакционно восстанавливает пользователя панели и snapshot его web-сессий.
+
+`GET /users/:id/system-details` связывает `system_username` с актуальными системными данными, ничего не копируя в SQLite: UID/GID, home, shell и группы берутся из NSS/passwd, sudo определяется по группам, наличие ключей — по `authorized_keys`, активные сессии — через `who --ips`, последний вход — через `last -F`. Временные значения возвращаются в RFC 3339 и форматируются Moment.js на frontend по выбранному языку.
 
 ## Root-helper
 
