@@ -12,6 +12,7 @@
 - [Production deployment](production.md) — TLS proxy, least privilege, backup и incident checklist;
 - [Эксплуатация](operations.md) — сборка, установка, systemd, update и backup;
 - [Состояние и TODO](todo.md) — готовые функции, план, рекомендации и известные проблемы.
+- [План расширения после v1](expansion-plan.md) — новые системные модули и Plugin SDK; статус: проектирование.
 
 ## Быстрый запуск frontend
 
