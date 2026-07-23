@@ -10,9 +10,17 @@ const router = createRouter({
       component: () => import('../layouts/AppLayout.vue'),
       children: [
         { path: '', component: () => import('../pages/DashboardPage.vue') },
-        { path: 'users', component: () => import('../pages/UsersPage.vue') },
+        {
+          path: 'users',
+          component: () => import('../pages/UsersPage.vue'),
+          meta: { roles: ['admin', 'operator'] },
+        },
         { path: 'settings', component: () => import('../pages/SettingsPage.vue') },
-        { path: ':section', component: () => import('../pages/PlaceholderPage.vue') },
+        {
+          path: ':section',
+          component: () => import('../pages/PlaceholderPage.vue'),
+          meta: { sectionRoles: true },
+        },
       ],
     },
   ],
@@ -21,11 +29,27 @@ const router = createRouter({
 router.beforeEach((to) => {
   const authenticated = Boolean(sessionStorage.getItem('access_token'))
   const mustChangePassword = sessionStorage.getItem('must_change_password') === 'true'
+  const role = sessionStorage.getItem('role') || ''
   if (to.path !== '/login' && !authenticated) return '/login'
   if (to.path === '/login' && authenticated) return '/'
   if (authenticated && mustChangePassword && to.path !== '/change-password')
     return '/change-password'
   if (authenticated && !mustChangePassword && to.path === '/change-password') return '/'
+  const roles = to.meta.roles as string[] | undefined
+  if (roles && !roles.includes(role)) return '/'
+  if (to.meta.sectionRoles) {
+    const restricted: Record<string, string[]> = {
+      docker: ['admin', 'operator'],
+      services: ['admin', 'operator'],
+      terminal: ['admin', 'operator'],
+      files: ['admin', 'operator'],
+      firewall: ['admin', 'operator'],
+      audit: ['admin'],
+      notifications: ['admin', 'operator'],
+    }
+    const allowed = restricted[String(to.params.section)]
+    if (allowed && !allowed.includes(role)) return '/'
+  }
 })
 
 export default router

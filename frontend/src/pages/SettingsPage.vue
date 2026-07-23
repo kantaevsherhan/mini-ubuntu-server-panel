@@ -9,9 +9,11 @@ import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 import TelegramSettings from '../components/TelegramSettings.vue'
 import NotificationSettings from '../components/NotificationSettings.vue'
+import { useAuthStore } from '../stores/auth'
 import { usePreferencesStore } from '../stores/preferences'
 import { useI18n } from '../services/i18n'
 const p = usePreferencesStore(),
+  auth = useAuthStore(),
   { t } = useI18n()
 const presets = [
     { label: 'Aura', value: 'aura' },
@@ -37,8 +39,9 @@ const presets = [
     <Tabs value="interface"
       ><TabList
         ><Tab value="interface"><i class="pi pi-palette mr-2" />{{ t.appearance }}</Tab
-        ><Tab value="telegram"><i class="pi pi-send mr-2" />Telegram</Tab
-        ><Tab value="notifications"
+        ><Tab v-if="auth.role === 'admin'" value="telegram"
+          ><i class="pi pi-send mr-2" />Telegram</Tab
+        ><Tab v-if="auth.role === 'admin'" value="notifications"
           ><i class="pi pi-bell mr-2" />{{ t.notifications }}</Tab
         ></TabList
       ><TabPanels
@@ -83,8 +86,9 @@ const presets = [
               </div>
               <div class="mt-5">
                 <Button label="Preview" icon="pi pi-palette" /></div></template></Card></TabPanel
-        ><TabPanel value="telegram"><TelegramSettings /></TabPanel
-        ><TabPanel value="notifications"><NotificationSettings /></TabPanel></TabPanels
+        ><TabPanel v-if="auth.role === 'admin'" value="telegram"><TelegramSettings /></TabPanel
+        ><TabPanel v-if="auth.role === 'admin'" value="notifications"
+          ><NotificationSettings /></TabPanel></TabPanels
     ></Tabs>
   </section>
 </template>

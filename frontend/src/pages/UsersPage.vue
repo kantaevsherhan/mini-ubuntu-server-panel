@@ -23,6 +23,7 @@ import ToggleSwitch from 'primevue/toggleswitch'
 import api from '../services/api'
 import { formatDateTime } from '../services/dateTime'
 import { useI18n } from '../services/i18n'
+import { useAuthStore } from '../stores/auth'
 
 interface PanelUser {
   id: number
@@ -97,6 +98,7 @@ const deleteOptions = reactive({
   terminate_sessions: false,
 })
 const toast = useToast()
+const authStore = useAuthStore()
 const { t, locale } = useI18n()
 
 async function load() {
@@ -241,7 +243,12 @@ onMounted(load)
     <div class="mb-5 flex flex-wrap items-center gap-3">
       <h1 class="text-2xl font-semibold">{{ t.users }}</h1>
       <span class="flex-1" />
-      <Button :label="t.createUser" icon="pi pi-user-plus" @click="openCreate" />
+      <Button
+        v-if="authStore.role === 'admin'"
+        :label="t.createUser"
+        icon="pi pi-user-plus"
+        @click="openCreate"
+      />
     </div>
     <DataTable
       :value="users"
@@ -269,8 +276,16 @@ onMounted(load)
       <Column frozen align-frozen="right">
         <template #body="{ data }">
           <div class="flex justify-end gap-1">
-            <Button icon="pi pi-pencil" text rounded :aria-label="t.edit" @click="openEdit(data)" />
             <Button
+              v-if="authStore.role === 'admin'"
+              icon="pi pi-pencil"
+              text
+              rounded
+              :aria-label="t.edit"
+              @click="openEdit(data)"
+            />
+            <Button
+              v-if="authStore.role === 'admin'"
               icon="pi pi-key"
               text
               rounded
@@ -285,6 +300,7 @@ onMounted(load)
               @click="showSessions(data)"
             />
             <Button
+              v-if="authStore.role === 'admin'"
               icon="pi pi-trash"
               text
               rounded

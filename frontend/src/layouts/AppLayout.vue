@@ -25,20 +25,40 @@ function go(path: string) {
   router.push(path)
 }
 
-const navigation = computed(() => [
-  { label: t.value.dashboard, icon: 'pi pi-chart-bar', command: () => go('/') },
-  { label: t.value.docker, icon: 'pi pi-box', command: () => go('/docker') },
-  { label: t.value.processes, icon: 'pi pi-list', command: () => go('/processes') },
-  { label: t.value.services, icon: 'pi pi-cog', command: () => go('/services') },
-  { label: t.value.terminal, icon: 'pi pi-desktop', command: () => go('/terminal') },
-  { label: t.value.files, icon: 'pi pi-folder', command: () => go('/files') },
-  { label: t.value.users, icon: 'pi pi-users', command: () => go('/users') },
-  { label: t.value.firewall, icon: 'pi pi-shield', command: () => go('/firewall') },
-  { label: t.value.logs, icon: 'pi pi-align-left', command: () => go('/logs') },
-  { label: t.value.audit, icon: 'pi pi-history', command: () => go('/audit') },
-  { label: t.value.notifications, icon: 'pi pi-bell', command: () => go('/notifications') },
-  { label: t.value.settings, icon: 'pi pi-sliders-h', command: () => go('/settings') },
-])
+const navigation = computed(() => {
+  const items: Array<{ label: string; icon: string; path: string; roles: string[] }> = [
+    { label: t.value.dashboard, icon: 'pi pi-chart-bar', path: '/', roles: [] },
+    { label: t.value.docker, icon: 'pi pi-box', path: '/docker', roles: ['admin', 'operator'] },
+    { label: t.value.processes, icon: 'pi pi-list', path: '/processes', roles: [] },
+    { label: t.value.services, icon: 'pi pi-cog', path: '/services', roles: ['admin', 'operator'] },
+    {
+      label: t.value.terminal,
+      icon: 'pi pi-desktop',
+      path: '/terminal',
+      roles: ['admin', 'operator'],
+    },
+    { label: t.value.files, icon: 'pi pi-folder', path: '/files', roles: ['admin', 'operator'] },
+    { label: t.value.users, icon: 'pi pi-users', path: '/users', roles: ['admin', 'operator'] },
+    {
+      label: t.value.firewall,
+      icon: 'pi pi-shield',
+      path: '/firewall',
+      roles: ['admin', 'operator'],
+    },
+    { label: t.value.logs, icon: 'pi pi-align-left', path: '/logs', roles: [] },
+    { label: t.value.audit, icon: 'pi pi-history', path: '/audit', roles: ['admin'] },
+    {
+      label: t.value.notifications,
+      icon: 'pi pi-bell',
+      path: '/notifications',
+      roles: ['admin', 'operator'],
+    },
+    { label: t.value.settings, icon: 'pi pi-sliders-h', path: '/settings', roles: [] },
+  ]
+  return items
+    .filter((item) => !item.roles.length || item.roles.includes(auth.role))
+    .map((item) => ({ ...item, command: () => go(item.path) }))
+})
 
 const accountItems = computed(() => [
   { label: t.value.settings, icon: 'pi pi-cog', command: () => router.push('/settings') },
@@ -84,7 +104,7 @@ function saveSidebar(event: { sizes?: number[] }) {
             <i class="pi pi-circle-fill mr-2 text-[8px]" />{{ t.online }}
           </Tag>
           <Button
-            label="admin"
+            :label="auth.username || t.account"
             icon="pi pi-user"
             icon-pos="right"
             text

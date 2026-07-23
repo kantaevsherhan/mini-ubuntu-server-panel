@@ -32,7 +32,7 @@
 - [x] Notification rules UI: per-event severity, recipients, cooldown, repeat interval, recovery и delivery history.
 - [ ] Docker SDK, systemd, firewall, processes, logs, files и terminal modules.
 - [ ] WebSocket authentication, origin validation и rate limits.
-- [ ] Settings sections и RBAC-aware navigation.
+- [ ] Все Settings sections. RBAC-aware navigation, route guards, account identity и admin-only actions уже готовы.
 - [x] Добавить минимальные осмысленные micro-interactions: hover/focus для действий и ссылок, обратная связь выбора файла, мягкое раскрытие панелей и изменение статуса; поддержать `prefers-reduced-motion` и исключить декоративные тяжёлые анимации.
 - [x] Versioned embedded SQLite migrations with transactional application tests.
 - [ ] CLI subcommands `update` и `uninstall` внутри binary.
