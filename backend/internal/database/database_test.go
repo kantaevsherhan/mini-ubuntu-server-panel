@@ -2,11 +2,22 @@ package database
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
 func TestMigrationsAreAppliedOnce(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "panel.db")
+	entries, err := migrationFiles.ReadDir("migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := 0
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sql") {
+			expected++
+		}
+	}
 	for attempt := 0; attempt < 2; attempt++ {
 		db, err := Open(path)
 		if err != nil {
@@ -17,9 +28,9 @@ func TestMigrationsAreAppliedOnce(t *testing.T) {
 			db.Close()
 			t.Fatal(err)
 		}
-		if count != 3 {
+		if count != expected {
 			db.Close()
-			t.Fatalf("expected 3 applied migrations, got %d", count)
+			t.Fatalf("expected %d applied migrations, got %d", expected, count)
 		}
 		if err := db.Close(); err != nil {
 			t.Fatal(err)

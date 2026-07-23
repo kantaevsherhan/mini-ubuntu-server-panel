@@ -17,6 +17,7 @@ import (
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/auth"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/database"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/systemusers"
+	telegramapi "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/telegram"
 )
 
 var usernamePattern = regexp.MustCompile(`^[a-z_][a-z0-9_-]{2,31}$`)
@@ -69,6 +70,13 @@ func (a API) Register(app *fiber.App) {
 	secured.Get("/system-users", a.requireRole("admin", "operator"), a.systemUsers)
 	secured.Get("/telegram/settings", a.requireRole("admin"), a.telegramSettings)
 	secured.Put("/telegram/settings", a.requireRole("admin"), a.updateTelegramSettings)
+	secured.Post("/telegram/check", a.requireRole("admin"), a.checkTelegram)
+	secured.Get("/telegram/updates", a.requireRole("admin"), a.telegramUpdates)
+	secured.Get("/telegram/recipients", a.requireRole("admin"), a.telegramRecipients)
+	secured.Post("/telegram/recipients", a.requireRole("admin"), a.createTelegramRecipient)
+	secured.Put("/telegram/recipients/:id", a.requireRole("admin"), a.updateTelegramRecipient)
+	secured.Delete("/telegram/recipients/:id", a.requireRole("admin"), a.deleteTelegramRecipient)
+	secured.Post("/telegram/recipients/:id/test", a.requireRole("admin"), a.testTelegramRecipient)
 	secured.Get("/audit", a.requireRole("admin"), a.audit)
 }
 
@@ -575,6 +583,164 @@ func (a API) updateTelegramSettings(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+type telegramRecipientRequest struct {
+	TelegramUserID *int64 `json:"telegram_user_id"`
+	TelegramChatID int64  `json:"telegram_chat_id"`
+	DisplayName    string `json:"display_name"`
+	Enabled        bool   `json:"enabled"`
+	ReceiveAlerts  bool   `json:"receive_alerts"`
+	ReceiveAudit   bool   `json:"receive_audit"`
+	ReceiveUpdates bool   `json:"receive_updates"`
+}
+
+func (a API) telegramClient(ctx context.Context) (*telegramapi.Client, error) {
+	var baseURL string
+	var timeout int
+	if err := a.DB.QueryRowContext(ctx, `SELECT api_base_url,request_timeout_seconds FROM telegram_settings WHERE id=1`).Scan(&baseURL, &timeout); err != nil {
+		return nil, err
+	}
+	return telegramapi.New(baseURL, os.Getenv("MINI_UBUNTU_SERVER_TELEGRAM_BOT_TOKEN"), time.Duration(timeout)*time.Second)
+}
+
+func (a API) checkTelegram(c *fiber.Ctx) error {
+	client, err := a.telegramClient(c.UserContext())
+	if err != nil {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "telegram_token_not_configured"})
+	}
+	bot, err := client.GetMe(c.UserContext())
+	if err != nil {
+		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "telegram_connection_failed"})
+	}
+	var recipients int
+	_ = a.DB.QueryRowContext(c.UserContext(), `SELECT count(*) FROM telegram_recipients WHERE enabled=1`).Scan(&recipients)
+	return c.JSON(fiber.Map{"bot_id": bot.ID, "username": bot.Username, "recipients": recipients})
+}
+
+func (a API) telegramUpdates(c *fiber.Ctx) error {
+	client, err := a.telegramClient(c.UserContext())
+	if err != nil {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "telegram_token_not_configured"})
+	}
+	updates, err := client.GetUpdates(c.UserContext())
+	if err != nil {
+		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "telegram_updates_failed"})
+	}
+	candidates := make([]fiber.Map, 0)
+	seen := map[int64]bool{}
+	for _, update := range updates {
+		if update.Message == nil || seen[update.Message.Chat.ID] {
+			continue
+		}
+		seen[update.Message.Chat.ID] = true
+		candidates = append(candidates, fiber.Map{"telegram_user_id": update.Message.From.ID, "telegram_chat_id": update.Message.Chat.ID, "username": update.Message.From.Username, "display_name": strings.TrimSpace(update.Message.From.FirstName + " " + update.Message.Chat.Title), "chat_type": update.Message.Chat.Type})
+	}
+	return c.JSON(candidates)
+}
+
+func (a API) telegramRecipients(c *fiber.Ctx) error {
+	rows, err := a.DB.QueryContext(c.UserContext(), `SELECT id,telegram_user_id,telegram_chat_id,display_name,enabled,receive_alerts,receive_audit,receive_updates,created_at FROM telegram_recipients ORDER BY display_name,id`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	result := make([]fiber.Map, 0)
+	for rows.Next() {
+		var id int64
+		var userID sql.NullInt64
+		var chatID int64
+		var displayName sql.NullString
+		var enabled, alerts, audit, updates bool
+		var createdAt time.Time
+		if err := rows.Scan(&id, &userID, &chatID, &displayName, &enabled, &alerts, &audit, &updates, &createdAt); err != nil {
+			return err
+		}
+		result = append(result, fiber.Map{"id": id, "telegram_user_id": nullableInt64(userID), "telegram_chat_id": chatID, "display_name": nullableString(displayName), "enabled": enabled, "receive_alerts": alerts, "receive_audit": audit, "receive_updates": updates, "created_at": createdAt})
+	}
+	return c.JSON(result)
+}
+
+func (a API) createTelegramRecipient(c *fiber.Ctx) error {
+	var request telegramRecipientRequest
+	if err := c.BodyParser(&request); err != nil || !validTelegramRecipient(request) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "telegram_recipient_invalid"})
+	}
+	result, err := a.DB.ExecContext(c.UserContext(), `INSERT INTO telegram_recipients(telegram_user_id,telegram_chat_id,display_name,enabled,receive_alerts,receive_audit,receive_updates,created_at) VALUES(?,?,?,?,?,?,?,?)`, request.TelegramUserID, request.TelegramChatID, strings.TrimSpace(request.DisplayName), request.Enabled, request.ReceiveAlerts, request.ReceiveAudit, request.ReceiveUpdates, time.Now().UTC())
+	if err != nil {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "telegram_recipient_exists"})
+	}
+	id, _ := result.LastInsertId()
+	claims := c.Locals("claims").(*auth.Claims)
+	database.Audit(a.DB, claims.UserID, "telegram.recipient.create", "telegram_recipient", strconv.FormatInt(id, 10), "{}", c.IP())
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"id": id})
+}
+
+func (a API) updateTelegramRecipient(c *fiber.Ctx) error {
+	id, err := parseID(c.Params("id"))
+	if err != nil {
+		return fiber.ErrBadRequest
+	}
+	var request telegramRecipientRequest
+	if err := c.BodyParser(&request); err != nil || !validTelegramRecipient(request) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "telegram_recipient_invalid"})
+	}
+	result, err := a.DB.ExecContext(c.UserContext(), `UPDATE telegram_recipients SET telegram_user_id=?,telegram_chat_id=?,display_name=?,enabled=?,receive_alerts=?,receive_audit=?,receive_updates=? WHERE id=?`, request.TelegramUserID, request.TelegramChatID, strings.TrimSpace(request.DisplayName), request.Enabled, request.ReceiveAlerts, request.ReceiveAudit, request.ReceiveUpdates, id)
+	if err != nil {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "telegram_recipient_exists"})
+	}
+	changed, _ := result.RowsAffected()
+	if changed == 0 {
+		return fiber.ErrNotFound
+	}
+	claims := c.Locals("claims").(*auth.Claims)
+	database.Audit(a.DB, claims.UserID, "telegram.recipient.update", "telegram_recipient", strconv.FormatInt(id, 10), "{}", c.IP())
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (a API) deleteTelegramRecipient(c *fiber.Ctx) error {
+	id, err := parseID(c.Params("id"))
+	if err != nil {
+		return fiber.ErrBadRequest
+	}
+	result, err := a.DB.ExecContext(c.UserContext(), `DELETE FROM telegram_recipients WHERE id=?`, id)
+	if err != nil {
+		return err
+	}
+	changed, _ := result.RowsAffected()
+	if changed == 0 {
+		return fiber.ErrNotFound
+	}
+	claims := c.Locals("claims").(*auth.Claims)
+	database.Audit(a.DB, claims.UserID, "telegram.recipient.delete", "telegram_recipient", strconv.FormatInt(id, 10), "{}", c.IP())
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (a API) testTelegramRecipient(c *fiber.Ctx) error {
+	id, err := parseID(c.Params("id"))
+	if err != nil {
+		return fiber.ErrBadRequest
+	}
+	var chatID int64
+	if err := a.DB.QueryRowContext(c.UserContext(), `SELECT telegram_chat_id FROM telegram_recipients WHERE id=?`, id).Scan(&chatID); err != nil {
+		return fiber.ErrNotFound
+	}
+	client, err := a.telegramClient(c.UserContext())
+	if err != nil {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "telegram_token_not_configured"})
+	}
+	hostname, _ := os.Hostname()
+	message := fmt.Sprintf("✅ Mini Ubuntu Server Panel connected\n\nServer: %s\nTime: %s", hostname, time.Now().Format(time.RFC3339))
+	if err := client.SendMessage(c.UserContext(), chatID, message); err != nil {
+		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "telegram_send_failed"})
+	}
+	claims := c.Locals("claims").(*auth.Claims)
+	database.Audit(a.DB, claims.UserID, "telegram.test.send", "telegram_recipient", strconv.FormatInt(id, 10), "{}", c.IP())
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func validTelegramRecipient(request telegramRecipientRequest) bool {
+	return request.TelegramChatID != 0 && len(strings.TrimSpace(request.DisplayName)) <= 128
+}
+
 func validateTelegramAPIURL(ctx context.Context, rawURL string) error {
 	parsed, err := url.ParseRequestURI(rawURL)
 	if err != nil || parsed.Hostname() == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
@@ -628,6 +794,13 @@ func nullableString(value sql.NullString) any {
 		return nil
 	}
 	return value.String
+}
+
+func nullableInt64(value sql.NullInt64) any {
+	if !value.Valid {
+		return nil
+	}
+	return value.Int64
 }
 
 func nullableTime(value sql.NullTime) any {
