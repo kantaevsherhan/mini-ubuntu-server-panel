@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"flag"
@@ -22,11 +23,12 @@ import (
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/config"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/database"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/httpapi"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/metrics"
 )
 
 var version = "dev"
 
-//go:embed web/*
+//go:embed web/* web-placeholder.html
 var web embed.FS
 
 func main() {
@@ -48,6 +50,7 @@ func main() {
 	}
 	defer db.Close()
 	bootstrap(db)
+	go metrics.NewCollector(db, time.Minute).Start(context.Background())
 
 	app := fiber.New(fiber.Config{
 		AppName:               "Mini Ubuntu Server Panel",
@@ -122,7 +125,7 @@ func staticFrontend(root fs.FS) fiber.Handler {
 			data, err = fs.ReadFile(root, "index.html")
 		}
 		if err != nil {
-			return fiber.ErrNotFound
+			data, err = web.ReadFile("web-placeholder.html")
 		}
 		switch {
 		case strings.HasSuffix(path, ".js"):

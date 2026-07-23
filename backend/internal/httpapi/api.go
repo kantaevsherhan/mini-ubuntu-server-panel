@@ -55,6 +55,7 @@ func (a API) Register(app *fiber.App) {
 	secured := api.Group("", a.authorize)
 	secured.Get("/me", func(c *fiber.Ctx) error { return c.JSON(c.Locals("claims")) })
 	secured.Get("/dashboard", a.dashboard)
+	secured.Get("/metrics/history", a.metricsHistory)
 	secured.Get("/users", a.users)
 	secured.Post("/users", a.requireRole("admin"), a.createUser)
 	secured.Get("/system-users", a.requireRole("admin", "operator"), a.systemUsers)
@@ -146,6 +147,61 @@ func (a API) dashboard(c *fiber.Ctx) error {
 	}
 	hostname, _ := os.Hostname()
 	return c.JSON(fiber.Map{"hostname": hostname, "panel_users": users, "pending_notifications": events, "status": "online"})
+}
+
+func (a API) metricsHistory(c *fiber.Ctx) error {
+	rangeName := c.Query("range", "day")
+	now := time.Now().UTC()
+	start := time.Time{}
+	bucketSeconds := int64(3600)
+	switch rangeName {
+	case "day":
+		start = now.Add(-24 * time.Hour)
+		bucketSeconds = 60
+	case "week":
+		start = now.Add(-7 * 24 * time.Hour)
+		bucketSeconds = 15 * 60
+	case "month":
+		start = now.Add(-30 * 24 * time.Hour)
+		bucketSeconds = 60 * 60
+	case "all":
+		if err := a.DB.QueryRowContext(c.UserContext(), `SELECT COALESCE(MIN(sampled_at), ?) FROM metric_samples`, now).Scan(&start); err != nil {
+			return err
+		}
+		span := now.Sub(start)
+		bucketSeconds = maxInt64(60, int64(span.Seconds()/500))
+	default:
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "metrics_range_invalid"})
+	}
+	rows, err := a.DB.QueryContext(c.UserContext(), `
+SELECT datetime((CAST(strftime('%s', sampled_at) AS INTEGER) / ?) * ?, 'unixepoch'),
+       AVG(cpu_percent), AVG(memory_percent), AVG(memory_used_bytes), MAX(memory_total_bytes)
+FROM metric_samples
+WHERE sampled_at >= ?
+GROUP BY CAST(strftime('%s', sampled_at) AS INTEGER) / ?
+ORDER BY sampled_at ASC
+LIMIT 1000`, bucketSeconds, bucketSeconds, start, bucketSeconds)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	points := make([]fiber.Map, 0)
+	for rows.Next() {
+		var sampledAt string
+		var cpuPercent, memoryPercent, memoryUsedBytes, memoryTotalBytes float64
+		if err := rows.Scan(&sampledAt, &cpuPercent, &memoryPercent, &memoryUsedBytes, &memoryTotalBytes); err != nil {
+			return err
+		}
+		points = append(points, fiber.Map{"sampled_at": sampledAt + "Z", "cpu_percent": cpuPercent, "memory_percent": memoryPercent, "memory_used_bytes": uint64(memoryUsedBytes), "memory_total_bytes": uint64(memoryTotalBytes)})
+	}
+	return c.JSON(fiber.Map{"range": rangeName, "points": points})
+}
+
+func maxInt64(left, right int64) int64 {
+	if left > right {
+		return left
+	}
+	return right
 }
 
 func (a API) users(c *fiber.Ctx) error {

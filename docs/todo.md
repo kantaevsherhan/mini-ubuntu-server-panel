@@ -20,7 +20,7 @@
 
 ## В работе / следующий приоритет
 
-- [ ] Исторические CPU/RAM метрики: SQLite samples, `/proc` collector, range API и ECharts день/неделя/месяц/всё время.
+- [x] Исторические CPU/RAM метрики: SQLite samples, `/proc` collector, range API и ECharts день/неделя/месяц/всё время.
 - [ ] Полный CRUD panel users и обязательная смена временного пароля.
 - [ ] Транзакционное создание panel + Ubuntu user с compensating rollback.
 - [ ] Связь `system_username`, группы, sudo, SSH keys и sessions.

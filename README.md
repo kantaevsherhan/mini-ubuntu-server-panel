@@ -4,6 +4,8 @@ Mini Ubuntu Server Panel — web-панель управления Ubuntu Server
 
 Проект находится в активной разработке. Готов фундамент авторизации, SQLite, аудита, пользователей панели, чтения Ubuntu-пользователей, Telegram-настроек, dashboard и production-упаковки. Docker, terminal, files, firewall, updater worker и полноценная очередь уведомлений развиваются поэтапно.
 
+Dashboard сохраняет минутные CPU/RAM samples из Linux `/proc` в SQLite и показывает ECharts-график за день, неделю, месяц или всё время с серверным downsampling.
+
 ## Имена проекта
 
 | Назначение | Имя |

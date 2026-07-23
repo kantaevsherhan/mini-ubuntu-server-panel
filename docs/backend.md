@@ -20,6 +20,7 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 | POST | `/auth/login` | public, rate-limited |
 | GET | `/me` | authenticated |
 | GET | `/dashboard` | authenticated |
+| GET | `/metrics/history?range=day|week|month|all` | authenticated |
 | GET | `/users` | authenticated |
 | POST | `/users` | admin |
 | GET | `/system-users` | admin/operator |
@@ -31,6 +32,8 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 ## SQLite
 
 SQLite работает в WAL mode, с foreign keys и одним writer connection. SQL-запросы параметризованы. Миграции сейчас выполняются идемпотентной схемой при старте; перед стабильным релизом их нужно перевести на версионированные файлы.
+
+Collector раз в минуту читает aggregate CPU counters из `/proc/stat` и `MemTotal`/`MemAvailable` из `/proc/meminfo`. Исторический API группирует точки на стороне SQLite и ограничивает ответ 1000 точками.
 
 ## Проверки
 

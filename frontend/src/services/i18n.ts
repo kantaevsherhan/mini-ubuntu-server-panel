@@ -27,6 +27,13 @@ const messages = {
     username: 'Имя пользователя',
     password: 'Пароль',
     server: 'Сервер',
+    memory: 'Оперативная память',
+    metricsHistory: 'История CPU и памяти',
+    day: 'День',
+    week: 'Неделя',
+    month: 'Месяц',
+    allTime: 'Всё время',
+    noMetrics: 'Метрики появятся после первой минуты работы backend.',
   },
   en: {
     dashboard: 'Dashboard',
@@ -53,6 +60,13 @@ const messages = {
     username: 'Username',
     password: 'Password',
     server: 'Server',
+    memory: 'Memory',
+    metricsHistory: 'CPU and memory history',
+    day: 'Day',
+    week: 'Week',
+    month: 'Month',
+    allTime: 'All time',
+    noMetrics: 'Metrics will appear after the backend runs for one minute.',
   },
 } as const
 export function useI18n() {
