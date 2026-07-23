@@ -27,6 +27,8 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 | GET | `/users/:id/system-details` | admin/operator |
 | GET/PUT | `/telegram/settings` | admin |
 | PUT | `/telegram/token` | admin |
+| GET/PUT | `/notifications/rules[/:key]` | admin |
+| GET | `/notifications/history` | admin/operator |
 | GET | `/audit` | admin |
 
 Ответы об ошибках содержат стабильное поле `error` и не раскрывают внутреннее сообщение Go/SQLite.
@@ -49,6 +51,19 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 - не принимает и не хранит Ubuntu-пароли.
 
 Bot Token изменяется отдельным exact subcommand `privileged-secret telegram-token`. Значение проходит allowlist-валидацию, поступает через stdin, атомарно заменяется в `secrets.env` с сохранением owner/mode и никогда не попадает в argv, SQLite, ответ API или аудит. Telegram client перечитывает файл перед запросом, поэтому restart сервиса не нужен.
+
+## Очередь уведомлений
+
+Правила seeded для ресурсных, Docker, systemd, security и system событий. Каждое правило задаёт enabled, severity, выбранных Telegram recipients, cooldown, repeat interval и recovery notification. Worker хранит incident state в SQLite:
+
+- повторный сигнал активной проблемы подавляется до repeat interval;
+- после recovery новый сигнал подавляется на cooldown, чтобы избежать flapping;
+- recovery закрывает активные события и отменяет ещё не отправленные stale deliveries;
+- выбранные recipients переопределяют audience defaults;
+- delivery использует retry/exponential backoff, terminal failed status и восстановление записей `sending` после restart;
+- frontend показывает виртуализированные rules/history таблицы и форматирует время Moment.js по RU/EN locale.
+
+Сетевые ошибки Telegram нормализуются до безопасного сообщения до записи в SQLite; Bot Token не входит в URL/error, API истории возвращает только безопасный delivery error code.
 
 ## SQLite и ORM
 

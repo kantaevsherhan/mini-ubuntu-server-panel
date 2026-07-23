@@ -114,7 +114,7 @@ func call[T any](ctx context.Context, client *Client, method string, payload any
 	request.Header.Set("Content-Type", "application/json")
 	httpResponse, err := client.http.Do(request)
 	if err != nil {
-		return zero, err
+		return zero, errors.New("Telegram API network request failed")
 	}
 	defer func() { _ = httpResponse.Body.Close() }()
 	limited := io.LimitReader(httpResponse.Body, 1<<20)

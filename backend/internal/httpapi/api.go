@@ -92,6 +92,9 @@ func (a API) Register(app *fiber.App) {
 	secured.Put("/telegram/recipients/:id", a.requireRole("admin"), a.updateTelegramRecipient)
 	secured.Delete("/telegram/recipients/:id", a.requireRole("admin"), a.deleteTelegramRecipient)
 	secured.Post("/telegram/recipients/:id/test", a.requireRole("admin"), a.testTelegramRecipient)
+	secured.Get("/notifications/rules", a.requireRole("admin"), a.notificationRules)
+	secured.Put("/notifications/rules/:key", a.requireRole("admin"), a.updateNotificationRule)
+	secured.Get("/notifications/history", a.requireRole("admin", "operator"), a.notificationHistory)
 	secured.Get("/audit", a.requireRole("admin"), a.audit)
 }
 

@@ -29,7 +29,7 @@
 - [x] Telegram getMe/getUpdates/sendMessage, SSRF-safe transport и recipients UI.
 - [x] Привилегированное изменение Telegram Bot Token через root-helper stdin без передачи token в argv, лог или SQLite.
 - [x] Notification queue worker с delivery status, retry, exponential backoff и dedup.
-- [ ] Notification rules UI: per-event severity, recipients, cooldown, repeat interval и recovery notifications.
+- [x] Notification rules UI: per-event severity, recipients, cooldown, repeat interval, recovery и delivery history.
 - [ ] Docker SDK, systemd, firewall, processes, logs, files и terminal modules.
 - [ ] WebSocket authentication, origin validation и rate limits.
 - [ ] Settings sections и RBAC-aware navigation.

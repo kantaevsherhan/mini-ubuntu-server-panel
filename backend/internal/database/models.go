@@ -93,6 +93,21 @@ type NotificationRule struct {
 	UpdatedAt             time.Time
 }
 
+type NotificationRuleRecipient struct {
+	EventKey    string `gorm:"primaryKey"`
+	RecipientID int64  `gorm:"primaryKey"`
+}
+
+type NotificationRuleState struct {
+	EventKey        string `gorm:"primaryKey"`
+	Active          bool
+	ActiveDedupKey  *string
+	LastEventID     *int64
+	LastTriggeredAt *time.Time
+	LastNotifiedAt  *time.Time
+	ResolvedAt      *time.Time
+}
+
 type MetricSample struct {
 	ID               int64 `gorm:"primaryKey"`
 	SampledAt        time.Time

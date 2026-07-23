@@ -31,6 +31,8 @@ Production frontend собирается Bun/Vite и копируется в `ba
 
 SQLite хранит пользователей панели, аудит, Telegram-настройки и получателей, события и доставки уведомлений. Ubuntu-пользователи читаются из системных источников и не дублируют пароли в SQLite.
 
+Notification worker использует durable events/deliveries, rule-recipient links и incident state. Cooldown применяется после recovery, repeat interval — пока incident активен; recovery закрывает incident и отменяет pending stale deliveries. После restart записи `sending` возвращаются в `pending`.
+
 Все времена backend должны храниться в UTC. Frontend локализует отображение Moment.js после получения данных.
 
 ## Границы привилегий
