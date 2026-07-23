@@ -8,6 +8,15 @@ curl -fsSL https://raw.githubusercontent.com/kantaevsherhan/mini-ubuntu-server-p
 
 Установщик проверяет Ubuntu и архитектуру, скачивает Release, сверяет SHA-256, создаёт пользователя/директории, устанавливает systemd unit и проверяет health endpoint.
 
+Установка конкретной версии и проверяемый вариант через локальный файл:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kantaevsherhan/mini-ubuntu-server-panel/main/scripts/install.sh -o install.sh
+less install.sh
+sudo bash install.sh --version v1.0.0
+rm install.sh
+```
+
 Для уже установленного Docker Engine можно явно включить Docker-модуль:
 
 ```bash
@@ -15,6 +24,8 @@ sudo bash install.sh --enable-docker
 ```
 
 Параметр требует существующую группу `docker`, добавляет в неё `mini-ubuntu-server` и предупреждает, что Docker socket предоставляет root-equivalent возможности. Без параметра панель возвращает безопасную ошибку `docker_unavailable`.
+
+`--data-dir` меняет config и создаваемый каталог, но нестандартный путь нужно также явно добавить в `ReadWritePaths` установленного systemd unit. После изменения выполните `systemctl daemon-reload` и restart; иначе `ProtectSystem=strict` заблокирует запись. Для обычной установки оставляйте `/var/lib/mini-ubuntu-server`.
 
 ## Пути
 
@@ -52,13 +63,20 @@ Web-терминал выполняет команды от имени `mini-ubu
 scripts/release.sh v1.0.0
 ```
 
-Скрипт проверяет frontend, собирает linux/amd64 и linux/arm64, создаёт архивы и `checksums.txt`. GitHub Actions выполняет тот же pipeline по tag `v*`.
+Скрипт проверяет frontend, собирает linux/amd64 и linux/arm64, создаёт архивы и `checksums.txt`. GitHub Actions выполняет тот же pipeline по tag `v*` и публикует два архива, `checksums.txt`, `install.sh` и `uninstall.sh`. Отдельный release `update.sh` не нужен: обновление встроено в binary.
 
 ## Backup и update
 
 ```bash
 sudo mini-ubuntu-server update
 sudo mini-ubuntu-server update --version v1.1.0
+```
+
+Эквивалент для существующей установки:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kantaevsherhan/mini-ubuntu-server-panel/main/scripts/install.sh \
+  | sudo bash -s -- --update
 ```
 
 CLI получает release только из `kantaevsherhan/mini-ubuntu-server-panel`, проверяет archive по `checksums.txt`, останавливает systemd и копирует binary, SQLite, WAL и SHM в timestamped backup. Затем binary заменяется атомарно, при startup выполняются embedded migrations, а health-check использует фактический порт `listen` из config. Если start или health завершается ошибкой, CLI возвращает предыдущий binary и database snapshot и снова запускает сервис. Lock в `/run` блокирует параллельные update.

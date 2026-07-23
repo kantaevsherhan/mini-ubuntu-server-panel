@@ -7,6 +7,21 @@
 
 Этот документ фиксирует новые задачи после завершения текущего v1 scope. Это roadmap, а не перечень уже реализованных функций.
 
+## Технический долг перед расширением
+
+Эти задачи не отменяют roadmap, но должны выполняться до публичного production-релиза либо параллельно с общей инфраструктурой:
+
+- заменить JWT в `sessionStorage` на HttpOnly Secure SameSite sessions с CSRF protection и rotation;
+- добавить TOTP/WebAuthn и persistent/distributed login throttling;
+- ввести retention/aggregation для audit/login failures и tiered downsampling метрик;
+- добавить Dependabot/Renovate, secret scanning, SBOM и signed release provenance к существующим CodeQL/dependency scans;
+- автоматизировать backup integrity checks и регулярно выполнять restore drill;
+- добавить screenshot regression и расширять negative/fuzz security coverage;
+- поддержать authenticated GitHub API token для installer/update check, не сохраняя token в logs;
+- пройти независимые threat modeling и penetration test до публичного доступа.
+
+Telegram delivery остаётся at-least-once: Bot API не предоставляет client idempotency key для crash window после remote acceptance и до локальной записи результата. Этот риск должен быть видимым в UI/operations и не маскироваться заявлением exactly-once.
+
 ## 1. Цель и архитектурные границы
 
 Расширить панель, сохранив Go/Fiber, Vue 3/Vite/TypeScript, PrimeVue, SQLite, exact-allowlist root-helper, RBAC `admin|operator|viewer`, audit, безопасные WebSocket-сессии и GitHub Releases update/rollback.

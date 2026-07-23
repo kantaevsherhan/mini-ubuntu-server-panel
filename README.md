@@ -1,74 +1,56 @@
 # Mini Ubuntu Server Panel
 
-Mini Ubuntu Server Panel — web-панель управления Ubuntu Server с backend на Go/Fiber и frontend на Vue 3. Проект ориентирован на Ubuntu 24.04, тёмный desktop-first интерфейс и установку из GitHub Releases.
+Web-панель управления Ubuntu Server с backend на Go/Fiber и frontend на Vue 3. Поддерживает Ubuntu `amd64`/`arm64`, устанавливается из GitHub Releases и запускается как `mini-ubuntu-server.service`.
 
-Проект находится в активной разработке. Реализованы авторизация, SQLite-аудит, транзакционное создание panel/Ubuntu-пользователей, Telegram-настройки, очередь и правила уведомлений, dashboard, управление Linux-процессами, systemd-сервисами, Docker-контейнерами, UFW, journald, allowlisted файлами, защищённый web-терминал, встроенный updater/uninstaller и production-упаковка.
+> Проект находится в активной разработке. Для production используйте TLS reverse proxy, VPN/IP allowlist и рекомендации из [production deployment](docs/production.md).
 
-Dashboard сохраняет минутные CPU/RAM samples из Linux `/proc` в SQLite и показывает ECharts-график за день, неделю, месяц или всё время с серверным downsampling.
+## Возможности
 
-Раздел «Процессы» читает актуальные данные из `/proc`, поддерживает поиск и виртуальный скроллинг. Admin/operator могут после подтверждения отправить только allowlist-сигналы `HUP`, `TERM` или `KILL`; каждое действие записывается в аудит.
+- Dashboard с текущими и историческими CPU/RAM-метриками из `/proc`;
+- процессы Linux и allowlisted сигналы;
+- systemd services и защищённый собственный unit;
+- Docker containers через Moby SDK с явным opt-in к socket;
+- UFW rules с защитой SSH-порта;
+- bounded journald viewer;
+- файловый менеджер только внутри `allowed_directories` и Monaco Editor;
+- непривилегированный web-terminal с одноразовым WebSocket ticket;
+- отдельные panel users и Ubuntu users с compensating rollback;
+- Telegram recipients, правила, cooldown/recovery и durable delivery queue;
+- Audit и Notifications pages;
+- встроенные CLI-команды update/uninstall с backup и rollback.
 
-Раздел «Сервисы» показывает загруженные и установленные systemd unit files. Admin/operator могут выполнять `start`, `stop`, `restart`, `enable` и `disable`; собственный `mini-ubuntu-server.service` защищён от этих действий через API.
-
-Раздел Docker использует актуальный Moby Go SDK с API negotiation, показывает все контейнеры и разрешает admin/operator выполнить `start`, `stop`, `restart` и безопасное удаление остановленного контейнера без volumes/force.
-
-Раздел Firewall показывает numbered UFW rules. Operator имеет read-only доступ, admin может добавить строго валидированное inbound `allow`/`deny` правило или удалить правило после подтверждения. Web API не включает и не выключает UFW, а deny стандартного SSH-порта 22 заблокирован.
-
-Раздел «Логи» читает journald через ограниченный root-helper, поддерживает allowlist-фильтры по systemd unit, priority, диапазону и числу строк. Ответ ограничен 2000 строками и 8 KiB на сообщение; интерфейс использует виртуальный скроллинг.
-
-Файловый менеджер работает только с `allowed_directories` из root-owned config. Он поддерживает virtual DataTable, upload, создание папок и UTF-8 файлов до 2 MiB, атомарное сохранение через Monaco Editor и maximizable/fullscreen editor dialog. Absolute/parent/symlink traversal блокируется backend и повторно root-helper.
-
-Web-терминал использует xterm.js и непривилегированный PTY системного пользователя `mini-ubuntu-server`. JWT не передаётся в WebSocket URL: frontend запрашивает одноразовый 30-секундный ticket и передаёт его в `Sec-WebSocket-Protocol`. Backend проверяет same-origin, IP, RBAC, размер и частоту сообщений, ограничивает число и длительность сессий и не записывает команды в аудит.
-
-Settings объединяет 14 продуктовых разделов в RBAC-filtered PrimeVue Tabs. Операционные значения читаются через отдельный overview API, а admin может безопасно проверить последнюю стабильную версию через фиксированный GitHub Releases endpoint; URL из браузера backend не принимает.
-
-Раздел «Аудит» доступен только admin и показывает виртуализированный неизменяемый журнал действий с actor ID, целью, IP, локализованным временем и деталями. Раздел «Уведомления» показывает Telegram delivery history admin/operator; редактирование правил, получателей, cooldown и recovery остаётся только у admin.
+Системные изменения выполняются без произвольного shell: backend передаёт строго валидированный JSON через stdin точным root-helper subcommands. Секреты, terminal input и Ubuntu passwords не записываются в SQLite или audit.
 
 ## Имена проекта
 
 | Назначение | Имя |
 |---|---|
-| GitHub-репозиторий | `mini-ubuntu-server-panel` |
-| CLI и бинарный файл | `mini-ubuntu-server` |
+| GitHub repository | `mini-ubuntu-server-panel` |
+| CLI и binary | `mini-ubuntu-server` |
 | systemd service | `mini-ubuntu-server.service` |
 
-GitHub: `https://github.com/kantaevsherhan/mini-ubuntu-server-panel`.
+Repository: <https://github.com/kantaevsherhan/mini-ubuntu-server-panel>
 
-## Технологии
+## Стек
 
 Backend:
 
-- Go 1.25 и Fiber 2;
-- REST API, JWT и bcrypt;
-- SQLite без CGO;
-- Linux `/proc`, `/sys` и системные API;
-- systemd и ограниченный sudoers.
+- Go 1.25, Fiber 2, REST/WebSocket;
+- GORM и pure-Go SQLite;
+- JWT, bcrypt, Docker SDK;
+- `/proc`, `/sys`, systemd, UFW и exact sudoers helpers.
 
 Frontend:
 
-- Vue 3, Vite, TypeScript, Vue Router и Pinia;
-- PrimeVue 4 и готовые компоненты PrimeVue;
-- PrimeIcons для всех интерфейсных иконок;
-- `@primeuix/themes` с Aura и Lara;
-- Tailwind CSS только для layout и utility-классов;
-- Moment.js для локализованного отображения даты и времени;
-- Bun для зависимостей, проверок и сборки;
-- ECharts, xterm.js и Monaco Editor для профильных модулей.
+- Vue 3, Vite, TypeScript, Vue Router, Pinia;
+- PrimeVue 4, PrimeIcons и `@primeuix/themes` Aura/Lara;
+- Tailwind CSS для layout/utilities;
+- Moment.js, ECharts, xterm.js и Monaco Editor;
+- Bun для dependencies, scripts и build.
 
-## Интерфейс
+Интерфейс использует готовые PrimeVue-компоненты. По умолчанию активны Aura, dark mode и emerald accent; доступны Lara, light mode, blue/violet accents и только два языка — русский и английский. Даты форматируются общим Moment.js service: `DD.MM.YYYY HH:mm` для RU и `MM/DD/YYYY h:mm A` для EN.
 
-Интерфейс использует готовые PrimeVue-компоненты. Layout построен на `Menubar`, `PanelMenu`, `Splitter` и `SplitterPanel`; формы используют `Fluid`, `FloatLabel`, `InputText`, `Password`, `Select` и `Button`; данные отображаются через `DataTable`, `Tag`, `ProgressBar`, `Skeleton`, `Toast` и `ConfirmDialog`.
-
-В `Настройки → Интерфейс` доступны:
-
-- Aura или Lara;
-- dark или light режим;
-- accent color;
-- русский или английский язык.
-
-Настройки интерфейса сохраняются в `localStorage`. Даты на русском отображаются как `DD.MM.YYYY HH:mm`, на английском — как `MM/DD/YYYY h:mm A`.
-
-## Локальная разработка
+## Быстрый запуск для разработки
 
 Требуются Go 1.25+ и Bun 1.3+.
 
@@ -80,53 +62,45 @@ bun install
 bun run dev
 ```
 
-Backend:
+Backend в другом terminal:
 
 ```bash
 export MINI_UBUNTU_SERVER_JWT_SECRET="$(openssl rand -hex 32)"
 export MINI_UBUNTU_SERVER_BOOTSTRAP_USERNAME=admin
-export MINI_UBUNTU_SERVER_BOOTSTRAP_PASSWORD='change-this-password'
+export MINI_UBUNTU_SERVER_BOOTSTRAP_PASSWORD='change-this-long-password'
 cd backend
 go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 ```
 
-Vite проксирует `/api` на `127.0.0.1:8080`. Первый администратор создаётся только для пустой базы. Backend не выводит пароль в лог.
+Vite работает на `http://localhost:5173`, проксирует REST и WebSocket к `127.0.0.1:8080`. Bootstrap admin создаётся только для пустой базы; plaintext password не логируется.
 
-Production-сборка, встраивающая frontend в Go binary:
+Production build со встроенным frontend:
 
 ```bash
 make build VERSION=v0.1.0
 ```
 
-## Форматирование и проверки
-
-После каждого изменения frontend обязательно запускаются форматирование, ESLint, TypeScript и production build:
+## Проверки
 
 ```bash
 cd frontend
 bun run format
 bun run check
+bun audit
 bun run e2e
+
+cd ../backend
+gofmt -w .
+go test ./...
+go vet ./...
+golangci-lint run
+govulncheck ./...
+
+cd ..
+bash -n scripts/*.sh
 ```
 
-Для Go используются `gofmt`, `go test`, `go vet`, `golangci-lint` и `govulncheck`. Полная проверка репозитория:
-
-```bash
-make check
-```
-
-Такие же проверки запускаются в GitHub Actions при push и pull request.
-
-## Скрипты
-
-Все рабочие скрипты находятся только в `scripts/`:
-
-| Файл | Назначение |
-|---|---|
-| `scripts/install.sh` | установка из GitHub Release и проверка SHA-256 |
-| `scripts/update.sh` | тонкий entrypoint для встроенной CLI-команды update |
-| `scripts/uninstall.sh` | тонкий entrypoint для встроенной CLI-команды uninstall |
-| `scripts/release.sh` | проверка и сборка архивов amd64/arm64 |
+`make check` выполняет frontend check, gofmt verification, Go tests/vet/lint и shell syntax. CI дополнительно запускает `bun audit`, desktop/mobile Playwright и `govulncheck`.
 
 ## Установка
 
@@ -143,21 +117,7 @@ curl -fsSL https://raw.githubusercontent.com/kantaevsherhan/mini-ubuntu-server-p
   | sudo bash -s -- --version v1.0.0
 ```
 
-Дополнительные параметры:
-
-```bash
-sudo bash scripts/install.sh --port 8080 --username admin --data-dir /var/lib/mini-ubuntu-server
-```
-
-Если Docker Engine уже установлен, доступ панели к Docker socket включается только явно:
-
-```bash
-sudo bash scripts/install.sh --enable-docker
-```
-
-Членство в группе `docker` эквивалентно root-доступу к серверу. Не включайте параметр, если Docker-модуль не нужен.
-
-Более безопасный способ:
+Безопасный вариант с просмотром:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kantaevsherhan/mini-ubuntu-server-panel/main/scripts/install.sh -o install.sh
@@ -166,62 +126,50 @@ sudo bash install.sh
 rm install.sh
 ```
 
-Установщик поддерживает Ubuntu `amd64` и `arm64`, сверяет SHA-256, создаёт системного пользователя, конфигурацию, секреты и включает `mini-ubuntu-server.service`. Временный пароль показывается один раз. После health-check bootstrap-переменные удаляются из `secrets.env`, а в SQLite остаётся только bcrypt-хеш.
+Параметры локального файла:
 
-## Управление сервисом
+```bash
+sudo bash install.sh --port 8080 --username admin --data-dir /var/lib/mini-ubuntu-server
+sudo bash install.sh --enable-docker
+```
+
+`--enable-docker` добавляет service user в существующую группу `docker`. Это root-equivalent доступ и он по умолчанию выключен.
+
+Installer проверяет Ubuntu/architecture/SHA-256, создаёт пользователя, config, secrets, SQLite, sudoers и systemd unit. Временный admin password показывается один раз и удаляется из environment file после успешного health-check; остаётся только bcrypt hash.
+
+## Управление
 
 ```bash
 sudo systemctl status mini-ubuntu-server
 sudo systemctl restart mini-ubuntu-server
-sudo systemctl stop mini-ubuntu-server
 sudo journalctl -u mini-ubuntu-server -f
-```
 
-Основные пути:
-
-- `/opt/mini-ubuntu-server/bin/mini-ubuntu-server`;
-- `/etc/mini-ubuntu-server/config.yml`;
-- `/etc/mini-ubuntu-server/secrets.env`;
-- `/var/lib/mini-ubuntu-server/mini-ubuntu-server.db`;
-- `/var/lib/mini-ubuntu-server/backups`;
-- `/var/log/mini-ubuntu-server`.
-
-## Обновление и удаление
-
-```bash
 sudo mini-ubuntu-server update
 sudo mini-ubuntu-server update --version v1.1.0
 sudo mini-ubuntu-server uninstall
 ```
 
-Installer создаёт `/usr/local/bin/mini-ubuntu-server`, указывающий на production binary. Обновление принимает только release выбранного GitHub-репозитория, проверяет SHA-256, безопасно извлекает только ожидаемый binary, останавливает сервис и сохраняет binary вместе с SQLite/WAL. Health endpoint определяется по порту из `config.yml`; при ошибке восстанавливаются и binary, и согласованный snapshot базы. Uninstall отдельно спрашивает об application, config, SQLite/history, backups и system user; данные и backups по умолчанию сохраняются.
+Основные пути:
 
-## Безопасность
+- `/opt/mini-ubuntu-server/bin/mini-ubuntu-server`;
+- `/etc/mini-ubuntu-server/{config.yml,secrets.env}`;
+- `/var/lib/mini-ubuntu-server/mini-ubuntu-server.db`;
+- `/var/lib/mini-ubuntu-server/backups`;
+- `/var/log/mini-ubuntu-server`.
 
-- пользователи панели отделены от Ubuntu-пользователей;
-- Ubuntu-пароли и `/etc/shadow` не сохраняются в SQLite;
-- совместное создание panel/Ubuntu-пользователя компенсирует уже созданную системную запись при ошибке SQLite;
-- при удалении можно независимо выбрать panel-запись, Ubuntu-пользователя, home, SSH-ключи и завершение сессий; ошибка root-helper восстанавливает panel-запись и web-сессии;
-- пароли панели хранятся как bcrypt-хеши;
-- JWT и Telegram Bot Token хранятся в защищённом `secrets.env`; Bot Token обновляется из UI через отдельный root-helper, передаётся ему только через stdin и перечитывается без рестарта;
-- секреты маскируются в логах и аудите;
-- роли `admin`, `operator`, `viewer` проверяются backend;
-- системные пользователи и Telegram Bot Token обслуживаются отдельными root-helper subcommands с точными sudoers-правилами; данные передаются через stdin, валидируются и не интерпретируются shell;
-- карточка связанного Ubuntu-пользователя показывает UID/GID, home, shell, группы, sudo, наличие SSH-ключей, активные login-сессии и последний вход;
-- привилегированные операции и изменения пользователей записываются в аудит;
-- systemd unit использует hardening-параметры.
-- Docker socket по умолчанию недоступен; `--enable-docker` является явным opt-in и выводит предупреждение о root-equivalent доступе.
+Все distribution scripts находятся только в `scripts/`: `install.sh`, `update.sh`, `uninstall.sh`, `release.sh`.
 
-## Структура
+## Документация
 
-```text
-backend/    Go/Fiber API, доменные пакеты и SQLite
-frontend/   Vue 3, PrimeVue 4 и Tailwind CSS
-packaging/  systemd, sudoers и пример конфигурации
-scripts/    install, update, uninstall и release
-.github/    CI и GitHub Release workflows
-```
+- [Индекс документации](docs/README.md)
+- [Архитектура](docs/architecture.md)
+- [Backend и API](docs/backend.md)
+- [Frontend](docs/frontend.md)
+- [Безопасность](docs/security.md)
+- [Production deployment](docs/production.md)
+- [Эксплуатация](docs/operations.md)
+- [План расширения](docs/expansion-plan.md)
 
 ## Лицензия
 
-Перед публичным релизом добавьте выбранный файл `LICENSE`.
+Лицензия пока не выбрана. До появления файла `LICENSE` стандартное авторское право сохраняется, и repository нельзя считать open-source лицензированным.

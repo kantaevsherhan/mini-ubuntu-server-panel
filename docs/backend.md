@@ -19,6 +19,10 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 | GET | `/health` | public |
 | POST | `/auth/login` | public, rate-limited |
 | GET | `/me` | authenticated |
+| POST | `/auth/password` | authenticated |
+| POST | `/auth/logout` | authenticated |
+| GET | `/auth/sessions` | authenticated |
+| DELETE | `/auth/sessions/:id` | authenticated, own sessions |
 | GET | `/dashboard` | authenticated |
 | GET | `/metrics/history?range=day|week|month|all` | authenticated |
 | GET | `/settings/overview` | admin/operator |
@@ -41,12 +45,20 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 | DELETE | `/files?root=&path=` | admin/operator |
 | POST | `/terminal/tickets` | admin/operator |
 | WS | `/terminal/ws` | одноразовый ticket, admin/operator |
-| GET | `/users` | authenticated |
+| GET | `/users` | admin/operator |
 | POST | `/users` | admin |
+| PATCH/DELETE | `/users/:id` | admin |
+| POST | `/users/:id/reset-password` | admin |
+| GET | `/users/:id/sessions` | admin/operator |
 | GET | `/system-users` | admin/operator |
 | GET | `/users/:id/system-details` | admin/operator |
 | GET/PUT | `/telegram/settings` | admin |
 | PUT | `/telegram/token` | admin |
+| POST | `/telegram/check` | admin |
+| GET | `/telegram/updates` | admin |
+| GET/POST | `/telegram/recipients` | admin |
+| PUT/DELETE | `/telegram/recipients/:id` | admin |
+| POST | `/telegram/recipients/:id/test` | admin |
 | GET/PUT | `/notifications/rules[/:key]` | admin |
 | GET | `/notifications/history` | admin/operator |
 | GET | `/audit` | admin |
@@ -57,7 +69,7 @@ Settings overview возвращает только операционный rea
 
 Binary обрабатывает `update` и `uninstall` до запуска HTTP/config bootstrap. Обе команды требуют effective UID 0. Update использует bounded HTTPS downloads, exact version/asset allowlist, SHA-256, safe tar entry extraction, non-blocking process lock, atomic binary replacement и rollback binary+SQLite/WAL/SHM после неуспешного health-check. Uninstall удаляет только фиксированные product paths; config, database, backups и service account остаются до отдельного подтверждения/flag.
 
-HTTP слой разделён по предметным файлам: `auth_handlers.go`, `dashboard_handlers.go`, `user_handlers.go`, `telegram_handlers.go`, `notification_rules.go`, `process_handlers.go` и `audit_handlers.go`. `api.go` содержит только dependency wiring, routes и health-check; новые модули не должны возвращать обработчики в единый большой файл.
+HTTP слой разделён по предметным handler-файлам для auth, dashboard/metrics, users, Telegram, notification rules, processes, services, Docker, firewall, logs, files, terminal, settings/update и audit. `api.go` содержит dependency wiring, routes и health-check; доменную логику нельзя возвращать в единый большой файл.
 
 `POST /users` поддерживает независимые флаги `create_panel_user` и `create_system_user`. Для Ubuntu-пользователя доступны `system_username`, `home_directory`, `shell`, `system_groups`, `allow_sudo`, `create_home`, `allow_ssh` и `ssh_public_key`. Если системная запись создана, но запись панели сохранить не удалось, backend вызывает компенсирующее удаление системного пользователя и его только что созданной домашней директории.
 
@@ -94,7 +106,7 @@ Terminal adapter запускает фиксированный `/bin/bash --nopr
 
 ## Очередь уведомлений
 
-Правила seeded для ресурсных, Docker, systemd, security и system событий. Каждое правило задаёт enabled, severity, выбранных Telegram recipients, cooldown, repeat interval и recovery notification. Worker хранит incident state в SQLite:
+Правила seeded для ресурсных, Docker, systemd, security и system событий. Каждое правило задаёт enabled, severity, выбранных Telegram recipients, cooldown, repeat interval и recovery notification. Worker хранит состояние активной проблемы в SQLite; это не будущая сущность Incident Mode:
 
 - повторный сигнал активной проблемы подавляется до repeat interval;
 - после recovery новый сигнал подавляется на cooldown, чтобы избежать flapping;

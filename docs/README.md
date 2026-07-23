@@ -11,8 +11,8 @@
 - [Security review](security-review.md) — findings, evidence, accepted risks и review decision;
 - [Production deployment](production.md) — TLS proxy, least privilege, backup и incident checklist;
 - [Эксплуатация](operations.md) — сборка, установка, systemd, update и backup;
-- [Состояние и TODO](todo.md) — готовые функции, план, рекомендации и известные проблемы.
-- [План расширения после v1](expansion-plan.md) — новые системные модули и Plugin SDK; статус: проектирование.
+- [Состояние и TODO](todo.md) — завершённый v1 scope, ограничения и рекомендации;
+- [План расширения после v1](expansion-plan.md) — новые системные модули, технический долг и Plugin SDK; статус: проектирование.
 
 ## Быстрый запуск frontend
 
@@ -27,10 +27,13 @@ bun run dev
 ## Обязательная проверка изменений
 
 ```bash
-cd frontend && bun run format && bun run check && bun audit
+(cd frontend && bun run format && bun run check && bun audit && bun run e2e)
 docker run --rm -u "$(id -u):$(id -g)" -e GOCACHE=/tmp/go-cache \
   -e GOMODCACHE=/tmp/go-mod-cache -v "$PWD:/workspace" \
   -w /workspace/backend golang:1.25 \
   sh -c 'gofmt -w . && go test ./... && go vet ./...'
+(cd backend && golangci-lint run && govulncheck ./...)
 bash -n scripts/*.sh
 ```
+
+Если локальные Go tools отсутствуют, используйте соответствующие official Docker images, как описано в основном README. CI содержит те же gates.

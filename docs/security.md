@@ -15,11 +15,11 @@
 - generic API errors без внутренних деталей;
 - username/role/password validation;
 - Telegram URL validation и SSRF-защита для private/link-local адресов;
-- параметризованный SQL;
+- GORM с параметризованными runtime queries; raw SQL разрешён только в versioned migrations;
 - аудит входов и административных операций;
 - `sessionStorage` вместо долговременного хранения JWT;
 - `bun audit`, `govulncheck`, CodeQL, Go checks и CI;
-- systemd hardening и отдельный системный пользователь.
+- systemd hardening и отдельный системный пользователь;
 - Docker socket недоступен по умолчанию; opt-in `--enable-docker` документирован как root-equivalent доступ, container IDs/actions проверяются allowlist, remove не использует force и не удаляет volumes.
 - UFW changes проходят двойную allowlist-валидацию, не используют shell, доступны только admin и записываются в аудит; deny порта 22 и enable/disable через web запрещены.
 - Journald доступен только admin/operator через allowlist query и exact root-helper; объём ответа и размер сообщения ограничены, дополнительные journal fields отбрасываются.
