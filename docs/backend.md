@@ -23,6 +23,8 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 | GET | `/metrics/history?range=day|week|month|all` | authenticated |
 | GET | `/processes` | authenticated |
 | POST | `/processes/:pid/signal` | admin/operator |
+| GET | `/services` | admin/operator |
+| POST | `/services/:unit/action` | admin/operator |
 | GET | `/users` | authenticated |
 | POST | `/users` | admin |
 | GET | `/system-users` | admin/operator |
@@ -57,6 +59,8 @@ HTTP слой разделён по предметным файлам: `auth_han
 Bot Token изменяется отдельным exact subcommand `privileged-secret telegram-token`. Значение проходит allowlist-валидацию, поступает через stdin, атомарно заменяется в `secrets.env` с сохранением owner/mode и никогда не попадает в argv, SQLite, ответ API или аудит. Telegram client перечитывает файл перед запросом, поэтому restart сервиса не нужен.
 
 Список процессов читается непривилегированно из `/proc`. Из исчезнувших или недоступных процессов данные не возвращаются. Управляющий endpoint принимает только числовой PID больше 1 и сигналы `HUP`, `TERM`, `KILL`. Сигнал передаётся JSON через stdin в exact subcommand `privileged-process`, повторно проверяется после перехода к root и отправляется напрямую через `kill(2)` без shell. Успешная операция фиксируется в аудите без содержимого командной строки процесса.
+
+Systemd adapter объединяет `systemctl list-units` и `list-unit-files`, чтобы показать активные и неактивные установленные сервисы. Изменения выполняются exact subcommand `privileged-service`: unit name проверяется строгим шаблоном с обязательным `.service`, доступны только `start`, `stop`, `restart`, `enable`, `disable`, shell не используется. Собственный unit панели заблокирован, успешные действия записываются в аудит.
 
 ## Очередь уведомлений
 

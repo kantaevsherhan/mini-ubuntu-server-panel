@@ -2,3 +2,4 @@
 mini-ubuntu-server ALL=(root) NOPASSWD: /opt/mini-ubuntu-server/bin/mini-ubuntu-server privileged-user
 mini-ubuntu-server ALL=(root) NOPASSWD: /opt/mini-ubuntu-server/bin/mini-ubuntu-server privileged-secret telegram-token
 mini-ubuntu-server ALL=(root) NOPASSWD: /opt/mini-ubuntu-server/bin/mini-ubuntu-server privileged-process
+mini-ubuntu-server ALL=(root) NOPASSWD: /opt/mini-ubuntu-server/bin/mini-ubuntu-server privileged-service

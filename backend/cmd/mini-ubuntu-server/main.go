@@ -26,6 +26,7 @@ import (
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/notifications"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/processes"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/secrets"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/services"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/systemusers"
 	"gorm.io/gorm"
 )
@@ -50,6 +51,12 @@ func main() {
 	}
 	if len(os.Args) == 2 && os.Args[1] == "privileged-process" {
 		if err := processes.RunPrivilegedSignal(os.Stdin); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if len(os.Args) == 2 && os.Args[1] == "privileged-service" {
+		if err := services.RunPrivilegedAction(os.Stdin); err != nil {
 			log.Fatal(err)
 		}
 		return
@@ -88,6 +95,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	serviceManager, err := services.NewManager()
+	if err != nil {
+		log.Fatal(err)
+	}
 	go metrics.NewCollector(db, time.Minute).Start(context.Background())
 	go notifications.New(db, notifications.TelegramSender{DB: db}).Run(context.Background())
 
@@ -118,7 +129,7 @@ func main() {
 	}))
 	app.Use(compress.New())
 
-	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Secret: cfg.JWTSecret, Version: version}.Register(app)
+	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Secret: cfg.JWTSecret, Version: version}.Register(app)
 	root, err := fs.Sub(web, "web")
 	if err != nil {
 		log.Fatal(err)
