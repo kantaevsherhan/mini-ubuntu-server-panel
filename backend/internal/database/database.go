@@ -52,9 +52,14 @@ INSERT OR IGNORE INTO telegram_settings(id, updated_at) VALUES(1, CURRENT_TIMEST
 
 func Open(path string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)")
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	db.SetMaxOpenConns(1)
-	if _, err = db.Exec(schema); err != nil { db.Close(); return nil, fmt.Errorf("migrate: %w", err) }
+	if _, err = db.Exec(schema); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate: %w", err)
+	}
 	return db, nil
 }
 
