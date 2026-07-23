@@ -24,6 +24,7 @@ import (
 	dockermanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/docker"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/firewall"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/httpapi"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/logs"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/metrics"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/notifications"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/processes"
@@ -65,6 +66,12 @@ func main() {
 	}
 	if len(os.Args) == 2 && os.Args[1] == "privileged-firewall" {
 		if err := firewall.RunPrivileged(os.Stdin, os.Stdout); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if len(os.Args) == 2 && os.Args[1] == "privileged-logs" {
+		if err := logs.RunPrivileged(os.Stdin, os.Stdout); err != nil {
 			log.Fatal(err)
 		}
 		return
@@ -115,6 +122,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	logManager, err := logs.NewManager()
+	if err != nil {
+		log.Fatal(err)
+	}
 	go metrics.NewCollector(db, time.Minute).Start(context.Background())
 	go notifications.New(db, notifications.TelegramSender{DB: db}).Run(context.Background())
 
@@ -145,7 +156,7 @@ func main() {
 	}))
 	app.Use(compress.New())
 
-	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Docker: dockerManager, Firewall: firewallManager, Secret: cfg.JWTSecret, Version: version}.Register(app)
+	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Docker: dockerManager, Firewall: firewallManager, Logs: logManager, Secret: cfg.JWTSecret, Version: version}.Register(app)
 	root, err := fs.Sub(web, "web")
 	if err != nil {
 		log.Fatal(err)

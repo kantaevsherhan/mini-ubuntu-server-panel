@@ -45,7 +45,12 @@ const navigation = computed(() => {
       path: '/firewall',
       roles: ['admin', 'operator'],
     },
-    { label: t.value.logs, icon: 'pi pi-align-left', path: '/logs', roles: [] },
+    {
+      label: t.value.logs,
+      icon: 'pi pi-align-left',
+      path: '/logs',
+      roles: ['admin', 'operator'],
+    },
     { label: t.value.audit, icon: 'pi pi-history', path: '/audit', roles: ['admin'] },
     {
       label: t.value.notifications,

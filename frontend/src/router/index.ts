@@ -27,6 +27,11 @@ const router = createRouter({
           meta: { roles: ['admin', 'operator'] },
         },
         {
+          path: 'logs',
+          component: () => import('../pages/LogsPage.vue'),
+          meta: { roles: ['admin', 'operator'] },
+        },
+        {
           path: 'users',
           component: () => import('../pages/UsersPage.vue'),
           meta: { roles: ['admin', 'operator'] },
@@ -60,6 +65,7 @@ router.beforeEach((to) => {
       terminal: ['admin', 'operator'],
       files: ['admin', 'operator'],
       firewall: ['admin', 'operator'],
+      logs: ['admin', 'operator'],
       audit: ['admin'],
       notifications: ['admin', 'operator'],
     }

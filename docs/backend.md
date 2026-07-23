@@ -30,6 +30,7 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 | GET | `/firewall` | admin/operator |
 | POST | `/firewall/rules` | admin |
 | DELETE | `/firewall/rules/:number` | admin |
+| GET | `/logs?unit=&priority=&range=hour|day|week&limit=` | admin/operator |
 | GET | `/users` | authenticated |
 | POST | `/users` | admin |
 | GET | `/system-users` | admin/operator |
@@ -70,6 +71,8 @@ Systemd adapter объединяет `systemctl list-units` и `list-unit-files`
 Docker adapter использует поддерживаемые модули `github.com/moby/moby/client` и `github.com/moby/moby/api` с автоматическим согласованием Engine API. Endpoint возвращает все контейнеры, включая остановленные. Действия принимают только hex container ID длиной 12–64 и allowlist `start`, `stop`, `restart`, `remove`; remove никогда не использует `force` и не удаляет volumes. Все успешные изменения записываются в аудит.
 
 UFW adapter работает только через exact sudoers subcommand `privileged-firewall`. JSON повторно валидируется после root-перехода; разрешены status, добавление inbound `allow`/`deny` для одного TCP/UDP-порта и удаление numbered rule. Source принимает только `any`, IP или CIDR. Deny порта 22, enable/disable/reset и произвольные UFW arguments запрещены. Команды запускаются без shell, изменения доступны только admin и пишутся в аудит.
+
+Journald adapter вызывает exact subcommand `privileged-logs`. Unit принимает только корректное имя `.service`, priority и временной диапазон выбираются из allowlist, limit ограничен 1–2000. Root-helper формирует фиксированный массив аргументов `journalctl` без shell, читает JSON lines, пропускает некорректные записи и обрезает каждое сообщение до 8 KiB. В API не возвращаются произвольные journal fields.
 
 ## Очередь уведомлений
 
