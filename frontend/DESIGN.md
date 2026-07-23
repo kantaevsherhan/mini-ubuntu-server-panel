@@ -110,6 +110,14 @@ Do not create native buttons, inputs, selects, textareas, menus, dialogs, cards,
 - Disable duplicate submissions while a request is running.
 - Errors must be actionable and must never reveal backend internals.
 
+## Motion and micro-interactions
+
+- Use a minimal amount of motion only to explain hover, focus, selection, expansion, upload/file selection, status changes, and successful actions.
+- Prefer PrimeVue's built-in transitions and short CSS transitions of 120–180ms for color, background, border, opacity, and small transforms.
+- Do not animate large layout regions, charts continuously, or add decorative looping motion.
+- Never delay an operation to play an animation.
+- Respect `prefers-reduced-motion: reduce`; disable non-essential transitions and smooth movement for those users.
+
 ## Accessibility
 
 - Keyboard navigation must work for all controls and menus.
