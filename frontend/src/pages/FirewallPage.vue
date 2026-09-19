@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
@@ -40,6 +41,8 @@ const confirm = useConfirm()
 const toast = useToast()
 const { t } = useI18n()
 const canManage = computed(() => auth.role === 'admin')
+const route = useRoute()
+const router = useRouter()
 
 async function load() {
   loading.value = true
@@ -89,7 +92,16 @@ function actionSeverity(action: string) {
   return 'secondary'
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load().catch(() => undefined)
+  const port = Number(route.query.port)
+  if (canManage.value && Number.isInteger(port) && port > 0 && port <= 65535) {
+    openCreate()
+    form.port = port
+    if (route.query.protocol === 'udp') form.protocol = 'udp'
+    router.replace({ query: {} })
+  }
+})
 </script>
 
 <template>

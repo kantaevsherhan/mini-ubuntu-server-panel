@@ -38,6 +38,15 @@
 - [x] Привилегированное изменение Telegram Bot Token через root-helper stdin без передачи token в argv, лог или SQLite.
 - [x] Notification queue worker с delivery status, retry, exponential backoff и dedup.
 - [x] Notification rules UI: per-event severity, recipients, cooldown, repeat interval, recovery и delivery history.
+- [x] Docker: образы (фоновый pull), тома, сети, prune, логи, pause/kill/force-remove и запуск контейнера с портами/env/томами без privileged-режима.
+- [x] Страница «Система»: ОС, ресурсы, диски, интерфейсы, слушающие порты и переход к правилу UFW.
+- [x] Persistent terminal: до 8 shell на пользователя, переживают закрытие браузера, replay scrollback, reaper для отозванных пользователей.
+- [x] Автообновление страниц только при видимой вкладке, тихие фоновые запросы, TTL-кэш `/proc`-сканов.
+- [x] Редизайн оболочки: сгруппированная навигация, сворачиваемый sidebar, переключатель темы, stat-карточки.
+- [x] Monitor: Docker/systemd/ресурсы → notification events; состояние по каждому объекту (`notification_subject_states`), instant-события безопасности, настройки в `monitor_settings`.
+- [x] Update ставит sudoers и systemd unit из релиза с `visudo`-проверкой и откатом, хранит 5 последних бэкапов; reinstall сохраняет JWT secret и Telegram token.
+- [ ] Изменение настроек сервера из панели (apt upgrade, reboot, hostname, timezone) через новые root-helper подкоманды.
+- [ ] Shell внутри Docker-контейнера (exec) и live CPU/RAM по контейнерам.
 - [x] Terminal: unprivileged PTY, xterm.js, resizable/fullscreen workspace и start/end audit без command logging.
 - [x] WebSocket: short-lived single-use ticket in subprotocol header, IP/RBAC/origin validation, message/session rate and size limits.
 - [x] Все Settings sections: RBAC-filtered PrimeVue Tabs, runtime/storage overview, module links, security/backup guidance и admin-only GitHub Release checker.

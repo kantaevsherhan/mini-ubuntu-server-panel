@@ -15,7 +15,9 @@ onMounted(() => {
     toast.add({
       severity: 'error',
       summary: error.network ? t.value.networkError : t.value.requestError,
-      detail: error.network ? t.value.networkErrorHint : `${t.value.errorCode}: ${error.code}`,
+      detail: error.network
+        ? t.value.networkErrorHint
+        : `${t.value.errorCode}: ${error.code}${error.message ? ` — ${error.message}` : ''}`,
       life: 6000,
     })
   })

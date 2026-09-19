@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
@@ -7,6 +7,8 @@ import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import InputText from 'primevue/inputtext'
 import Tag from 'primevue/tag'
+import RefreshControls from '../components/RefreshControls.vue'
+import { useAutoRefresh } from '../composables/useAutoRefresh'
 import api from '../services/api'
 import { formatDateTime } from '../services/dateTime'
 import { useI18n } from '../services/i18n'
@@ -41,10 +43,10 @@ const filtered = computed(() => {
   )
 })
 
-async function load() {
-  loading.value = true
+async function load(background = false) {
+  if (!background) loading.value = true
   try {
-    items.value = (await api.get<SystemProcess[]>('/processes')).data
+    items.value = (await api.get<SystemProcess[]>('/processes', { silent: background })).data
   } finally {
     loading.value = false
   }
@@ -85,7 +87,7 @@ function requestSignal(process: SystemProcess, signal: 'TERM' | 'KILL' | 'HUP') 
   })
 }
 
-onMounted(load)
+const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load, 5000)
 </script>
 
 <template>
@@ -95,7 +97,12 @@ onMounted(load)
         <h1 class="text-2xl font-semibold">{{ t.processes }}</h1>
         <p class="muted mt-1 text-sm">{{ t.processesHint }}</p>
       </div>
-      <Button :label="t.refresh" icon="pi pi-refresh" :loading="loading" @click="load" />
+      <RefreshControls
+        :loading="loading"
+        :auto="autoRefresh"
+        @refresh="load()"
+        @toggle="toggleAutoRefresh"
+      />
     </div>
 
     <InputText v-model="query" :placeholder="t.searchProcesses" class="w-full sm:max-w-md" />

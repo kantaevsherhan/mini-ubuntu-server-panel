@@ -171,3 +171,66 @@ func TestRecoverInFlightDeliveries(t *testing.T) {
 		t.Fatalf("recovered delivery was duplicated: processed=%t messages=%d err=%v", processed, len(sender.messages), err)
 	}
 }
+
+func drain(t *testing.T, service *Service) {
+	t.Helper()
+	for {
+		processed, err := service.ProcessOnce(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !processed {
+			return
+		}
+	}
+}
+
+func TestSubjectsAlertAndRecoverIndependently(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "panel.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, _ := db.DB()
+	defer func() { _ = sqlDB.Close() }()
+	if err := db.Create(&database.TelegramRecipient{TelegramChatID: 7, Enabled: true, ReceiveAlerts: true, CreatedAt: time.Now().UTC()}).Error; err != nil {
+		t.Fatal(err)
+	}
+	sender := &fakeSender{}
+	service := New(db, sender)
+	stopped := func(name string, recovery bool) Event {
+		return Event{Key: "docker.container.stopped", Severity: "error", Subject: name, DedupKey: "docker.container.stopped:" + name, Recovery: recovery, Payload: map[string]any{"title": name}}
+	}
+	ctx := context.Background()
+	for _, event := range []Event{stopped("web", false), stopped("db", false), stopped("web", false)} {
+		if _, err := service.Enqueue(ctx, event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	drain(t, service)
+	if len(sender.messages) != 2 {
+		t.Fatalf("expected one alert per container, got %#v", sender.messages)
+	}
+	if _, err := service.Enqueue(ctx, stopped("web", true)); err != nil {
+		t.Fatal(err)
+	}
+	drain(t, service)
+	var dbState database.NotificationSubjectState
+	if err := db.First(&dbState, "event_key = ? AND subject = ?", "docker.container.stopped", "db").Error; err != nil || !dbState.Active {
+		t.Fatalf("recovery of web resolved db: %#v %v", dbState, err)
+	}
+	if len(sender.messages) != 3 {
+		t.Fatalf("expected recovery for web, got %#v", sender.messages)
+	}
+
+	login := Event{Key: "security.admin_login", Severity: "info", Instant: true, Payload: map[string]any{"title": "login"}}
+	for index := range 2 {
+		login.DedupKey = "login:" + string(rune('a'+index))
+		if _, err := service.Enqueue(ctx, login); err != nil {
+			t.Fatal(err)
+		}
+	}
+	drain(t, service)
+	if len(sender.messages) != 5 {
+		t.Fatalf("instant events must not be suppressed: %#v", sender.messages)
+	}
+}

@@ -12,9 +12,11 @@ import (
 	filemanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/files"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/firewall"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/logs"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/monitor"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/processes"
 	secretstore "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/secrets"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/services"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/sysinfo"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/systemusers"
 	terminalmanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/terminal"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/updater"
@@ -35,6 +37,10 @@ type API struct {
 	Files       filemanager.Controller
 	Terminal    terminalmanager.Controller
 	Tickets     *terminalmanager.TicketStore
+	TerminalHub *terminalmanager.Hub
+	System      *sysinfo.Collector
+	Notifier    monitor.Notifier
+	Monitor     *monitor.Monitor
 	Updates     updater.Checker
 	Secret      string
 	Version     string
@@ -68,6 +74,15 @@ func (a API) Register(app *fiber.App) {
 	if a.Tickets == nil {
 		a.Tickets = terminalmanager.NewTicketStore()
 	}
+	if a.TerminalHub == nil && a.Terminal != nil {
+		a.TerminalHub = terminalmanager.NewHub(a.Terminal)
+		db := a.DB
+		a.TerminalHub.OnExit = func(userID int64, id string) {
+			database.Audit(db, userID, "terminal.session.end", "terminal_session", id, `{"commands":"not_recorded"}`, "")
+		}
+		// Persistent shells outlive browser tabs, so revoked or demoted users are reaped here.
+		go a.TerminalHub.Reap(context.Background(), time.Minute, a.terminalUserAllowed)
+	}
 	api := app.Group("/api/v1")
 	api.Get("/health", a.health)
 	api.Post("/auth/login", limiter.New(limiter.Config{
@@ -95,7 +110,21 @@ func (a API) Register(app *fiber.App) {
 	secured.Get("/services", a.requireRole("admin", "operator"), a.serviceList)
 	secured.Post("/services/:unit/action", a.requireRole("admin", "operator"), a.serviceAction)
 	secured.Get("/docker/containers", a.requireRole("admin", "operator"), a.dockerContainers)
+	secured.Post("/docker/containers", a.requireRole("admin"), a.dockerRunContainer)
 	secured.Post("/docker/containers/:id/action", a.requireRole("admin", "operator"), a.dockerContainerAction)
+	secured.Get("/docker/containers/:id/logs", a.requireRole("admin", "operator"), a.dockerContainerLogs)
+	secured.Get("/docker/images", a.requireRole("admin", "operator"), a.dockerImages)
+	secured.Post("/docker/images/pull", a.requireRole("admin"), a.dockerPullImage)
+	secured.Get("/docker/images/pulls", a.requireRole("admin", "operator"), a.dockerPullJobs)
+	secured.Delete("/docker/images/:id", a.requireRole("admin"), a.dockerRemoveImage)
+	secured.Get("/docker/volumes", a.requireRole("admin", "operator"), a.dockerVolumes)
+	secured.Post("/docker/volumes", a.requireRole("admin"), a.dockerCreateVolume)
+	secured.Delete("/docker/volumes/:name", a.requireRole("admin"), a.dockerRemoveVolume)
+	secured.Get("/docker/networks", a.requireRole("admin", "operator"), a.dockerNetworks)
+	secured.Delete("/docker/networks/:id", a.requireRole("admin"), a.dockerRemoveNetwork)
+	secured.Post("/docker/prune", a.requireRole("admin"), a.dockerPrune)
+	secured.Get("/system/info", a.requireRole("admin", "operator"), a.systemInfo)
+	secured.Get("/system/ports", a.requireRole("admin", "operator"), a.systemPorts)
 	secured.Get("/firewall", a.requireRole("admin", "operator"), a.firewallStatus)
 	secured.Post("/firewall/rules", a.requireRole("admin"), a.firewallAddRule)
 	secured.Delete("/firewall/rules/:number", a.requireRole("admin"), a.firewallDeleteRule)
@@ -108,6 +137,10 @@ func (a API) Register(app *fiber.App) {
 	secured.Post("/files/upload", a.requireRole("admin", "operator"), a.fileUpload)
 	secured.Delete("/files", a.requireRole("admin", "operator"), a.fileDelete)
 	secured.Post("/terminal/tickets", a.requireRole("admin", "operator"), a.terminalTicket)
+	secured.Get("/terminal/sessions", a.requireRole("admin", "operator"), a.terminalSessions)
+	secured.Post("/terminal/sessions", a.requireRole("admin", "operator"), a.terminalCreateSession)
+	secured.Patch("/terminal/sessions/:id", a.requireRole("admin", "operator"), a.terminalRenameSession)
+	secured.Delete("/terminal/sessions/:id", a.requireRole("admin", "operator"), a.terminalCloseSession)
 	secured.Get("/users", a.requireRole("admin", "operator"), a.users)
 	secured.Post("/users", a.requireRole("admin"), a.createUser)
 	secured.Patch("/users/:id", a.requireRole("admin"), a.updateUser)
@@ -128,6 +161,8 @@ func (a API) Register(app *fiber.App) {
 	secured.Post("/telegram/recipients/:id/test", a.requireRole("admin"), a.testTelegramRecipient)
 	secured.Get("/notifications/rules", a.requireRole("admin"), a.notificationRules)
 	secured.Put("/notifications/rules/:key", a.requireRole("admin"), a.updateNotificationRule)
+	secured.Get("/notifications/monitor", a.requireRole("admin"), a.monitorSettings)
+	secured.Put("/notifications/monitor", a.requireRole("admin"), a.updateMonitorSettings)
 	secured.Get("/notifications/history", a.requireRole("admin", "operator"), a.notificationHistory)
 	secured.Get("/audit", a.requireRole("admin"), a.audit)
 }

@@ -1,16 +1,42 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 :root {
-  font-family: Inter, system-ui, sans-serif;
+  font-family:
+    Inter,
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
   color-scheme: light;
+  --app-background: #f6f7f9;
+  --app-sidebar: #ffffff;
+  --app-surface: #ffffff;
+  --app-border: #e4e7ec;
+  --app-hover: #f1f3f6;
+  --app-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --terminal-background: #0d1117;
+  --terminal-foreground: #e6edf3;
 }
+
 html[data-theme='dark'] {
   color-scheme: dark;
+  --app-background: #0b0d12;
+  --app-sidebar: #0f1218;
+  --app-surface: #12161d;
+  --app-border: #1f2530;
+  --app-hover: #181d26;
+  --app-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --p-content-background: var(--app-surface);
+  --p-content-border-color: var(--app-border);
 }
+
 * {
   box-sizing: border-box;
 }
+
 html,
 body,
 #app {
@@ -18,23 +44,128 @@ body,
   min-width: 320px;
   min-height: 100%;
   height: 100%;
-  background: var(--p-surface-950);
-  color: var(--p-surface-100);
+  background: var(--app-background);
+  color: var(--p-text-color);
+  -webkit-font-smoothing: antialiased;
 }
-html[data-theme='light'] body {
-  background: var(--p-surface-50);
-  color: var(--p-surface-900);
+
+/* Page scaffolding shared by every screen. */
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
 }
+
+.page-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+.page-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  color: var(--p-text-muted-color);
+}
+
 .panel-card {
-  border: 1px solid var(--p-content-border-color);
-  background: var(--p-content-background);
-  border-radius: 6px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  border-radius: 12px;
+  box-shadow: var(--app-shadow);
 }
+
+.stat-card {
+  padding: 16px 18px;
+}
+
+.stat-card__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--p-text-muted-color);
+}
+
+.stat-card__value {
+  margin-top: 8px;
+  font-size: 1.6rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--p-primary-color);
+  background: color-mix(in srgb, var(--p-primary-500) 14%, transparent);
+}
+
 .muted {
   color: var(--p-text-muted-color);
 }
 
-:where(.p-button, .p-panelmenu-item-link, .p-menu-item-link) {
+/* Softer PrimeVue surfaces so tables and cards match the shell. */
+.p-card {
+  border: 1px solid var(--app-border);
+  border-radius: 12px !important;
+  box-shadow: var(--app-shadow) !important;
+  background: var(--app-surface) !important;
+}
+
+.p-datatable {
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  background: var(--app-surface);
+}
+
+.p-datatable .p-datatable-thead > tr > th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--p-text-muted-color);
+  background: var(--app-surface);
+}
+
+.p-datatable .p-datatable-tbody > tr {
+  background: var(--app-surface);
+}
+
+.p-datatable .p-datatable-tbody > tr:hover {
+  background: var(--app-hover);
+}
+
+.p-datatable-striped .p-datatable-tbody > tr.p-row-odd {
+  background: color-mix(in srgb, var(--app-hover) 55%, var(--app-surface));
+}
+
+.p-progressbar {
+  border-radius: 999px;
+}
+
+.p-tablist-tab-list {
+  background: transparent !important;
+}
+
+.p-tabpanels {
+  background: transparent !important;
+  padding-inline: 0 !important;
+}
+
+:where(.p-button, .p-menu-item-link) {
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
@@ -43,12 +174,8 @@ html[data-theme='light'] body {
     transform 150ms ease;
 }
 
-.p-button:not(:disabled):hover {
-  transform: translateY(-1px);
-}
-
 .p-button:not(:disabled):active {
-  transform: translateY(0) scale(0.98);
+  transform: scale(0.98);
 }
 
 .file-row-selected {
@@ -57,6 +184,19 @@ html[data-theme='light'] body {
   transition:
     background-color 150ms ease,
     color 150ms ease;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--app-border) padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--p-surface-500) padding-box;
 }
 
 @media (prefers-reduced-motion: reduce) {

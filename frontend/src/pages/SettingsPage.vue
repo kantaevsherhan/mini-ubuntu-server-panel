@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 import Column from 'primevue/column'
@@ -54,7 +54,9 @@ const auth = useAuthStore()
 const router = useRouter()
 const toast = useToast()
 const { t, locale } = useI18n()
-const activeSection = ref('general')
+const activeSection = ref(
+  typeof useRoute().query.tab === 'string' ? String(useRoute().query.tab) : 'general',
+)
 const overview = ref<Overview>()
 const currentVersion = ref('dev')
 const updateStatus = ref<UpdateStatus>()

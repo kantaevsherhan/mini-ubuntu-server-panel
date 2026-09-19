@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -32,6 +33,8 @@ const (
 	defaultService    = "mini-ubuntu-server.service"
 	maximumDownload   = 150 * 1024 * 1024
 	maximumBinary     = 100 * 1024 * 1024
+	maximumAuxFile    = 64 * 1024
+	keptUpdateBackups = 5
 )
 
 type UpdateOptions struct {
@@ -42,6 +45,9 @@ type UpdateOptions struct {
 	ConfigPath     string
 	Service        string
 	LockPath       string
+	// SudoersPath and UnitPath receive the files shipped in the release archive.
+	SudoersPath string
+	UnitPath    string
 }
 
 type updateDependencies struct {
@@ -80,6 +86,12 @@ func normalizeUpdateOptions(options UpdateOptions) UpdateOptions {
 	}
 	if options.LockPath == "" {
 		options.LockPath = "/run/mini-ubuntu-server-update.lock"
+	}
+	if options.SudoersPath == "" {
+		options.SudoersPath = "/etc/sudoers.d/mini-ubuntu-server"
+	}
+	if options.UnitPath == "" {
+		options.UnitPath = "/etc/systemd/system/" + options.Service
 	}
 	return options
 }
@@ -136,6 +148,26 @@ func performUpdate(ctx context.Context, options UpdateOptions, dependencies upda
 	if err != nil {
 		return err
 	}
+	// New releases may add privileged helpers or unit hardening, so ship sudoers and unit with the binary.
+	// Older archives without these files keep the installed versions.
+	sudoers, err := extractFile(archive, "mini-ubuntu-server.sudoers", maximumAuxFile)
+	if err != nil && !errors.Is(err, errArchiveFileMissing) {
+		return err
+	}
+	unit, err := extractFile(archive, "mini-ubuntu-server.service", maximumAuxFile)
+	if err != nil && !errors.Is(err, errArchiveFileMissing) {
+		return err
+	}
+	if sudoers != nil {
+		candidate := filepath.Join(filepath.Dir(options.LockPath), "mini-ubuntu-server.sudoers.new")
+		if err := os.WriteFile(candidate, sudoers, 0440); err != nil {
+			return errors.New("stage sudoers")
+		}
+		defer func() { _ = os.Remove(candidate) }()
+		if err := dependencies.run(ctx, "visudo", "-cf", candidate); err != nil {
+			return errors.New("release sudoers failed validation")
+		}
+	}
 
 	backupDir := filepath.Join(options.DataDir, "backups", "update-"+dependencies.now().UTC().Format("20060102T150405Z"))
 	if err := os.MkdirAll(backupDir, 0750); err != nil {
@@ -156,6 +188,9 @@ func performUpdate(ctx context.Context, options UpdateOptions, dependencies upda
 		if backupReady {
 			_ = copyFileAtomic(backupBinary, binaryPath, 0755)
 			_ = restoreDatabaseBackup(options.DataDir, backupDir)
+			restoreAuxFile(backupDir, options.SudoersPath, 0440)
+			restoreAuxFile(backupDir, options.UnitPath, 0644)
+			_ = dependencies.run(context.Background(), "systemctl", "daemon-reload")
 		}
 		_ = dependencies.run(context.Background(), "systemctl", "start", options.Service)
 	}()
@@ -166,9 +201,27 @@ func performUpdate(ctx context.Context, options UpdateOptions, dependencies upda
 	if err := backupDatabase(options.DataDir, backupDir); err != nil {
 		return errors.New("backup SQLite database")
 	}
+	for _, path := range []string{options.SudoersPath, options.UnitPath} {
+		if err := backupAuxFile(path, backupDir); err != nil {
+			return fmt.Errorf("backup %s", path)
+		}
+	}
 	backupReady = true
 	if err := writeFileAtomic(binaryPath, binary, 0755); err != nil {
 		return errors.New("install new binary")
+	}
+	if sudoers != nil {
+		if err := writeFileAtomic(options.SudoersPath, sudoers, 0440); err != nil {
+			return errors.New("install sudoers")
+		}
+	}
+	if unit != nil {
+		if err := writeFileAtomic(options.UnitPath, unit, 0644); err != nil {
+			return errors.New("install systemd unit")
+		}
+		if err := dependencies.run(ctx, "systemctl", "daemon-reload"); err != nil {
+			return errors.New("reload systemd")
+		}
 	}
 	if err := dependencies.run(ctx, "systemctl", "start", options.Service); err != nil {
 		return errors.New("start updated service")
@@ -177,7 +230,44 @@ func performUpdate(ctx context.Context, options UpdateOptions, dependencies upda
 		return errors.New("updated service failed health check")
 	}
 	rollbackNeeded = false
+	pruneUpdateBackups(filepath.Join(options.DataDir, "backups"), keptUpdateBackups)
 	return nil
+}
+
+// pruneUpdateBackups keeps only the newest update backups so disk usage stays bounded.
+func pruneUpdateBackups(directory string, keep int) {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return
+	}
+	names := []string{}
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), "update-") {
+			names = append(names, entry.Name())
+		}
+	}
+	// Names embed a UTC timestamp, so lexical order is chronological.
+	sort.Strings(names)
+	for len(names) > keep {
+		_ = os.RemoveAll(filepath.Join(directory, names[0]))
+		names = names[1:]
+	}
+}
+
+func backupAuxFile(path, backupDir string) error {
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return copyFile(path, filepath.Join(backupDir, filepath.Base(path)), 0640)
+}
+
+func restoreAuxFile(backupDir, path string, mode os.FileMode) {
+	source := filepath.Join(backupDir, filepath.Base(path))
+	if _, err := os.Stat(source); err == nil {
+		_ = copyFileAtomic(source, path, mode)
+	}
 }
 
 func acquireUpdateLock(path string) (*os.File, error) {
@@ -230,6 +320,38 @@ func verifyChecksum(filename string, data, checksums []byte) error {
 		return errors.New("release checksum verification failed")
 	}
 	return nil
+}
+
+var errArchiveFileMissing = errors.New("release archive file is missing")
+
+// extractFile returns one regular file from the release archive.
+func extractFile(archive []byte, name string, maximum int64) ([]byte, error) {
+	gzipReader, err := gzip.NewReader(bytes.NewReader(archive))
+	if err != nil {
+		return nil, errors.New("release archive is invalid")
+	}
+	defer func() { _ = gzipReader.Close() }()
+	reader := tar.NewReader(gzipReader)
+	for {
+		header, nextErr := reader.Next()
+		if errors.Is(nextErr, io.EOF) {
+			return nil, errArchiveFileMissing
+		}
+		if nextErr != nil {
+			return nil, errors.New("release archive is invalid")
+		}
+		if header.Name != name {
+			continue
+		}
+		if header.Typeflag != tar.TypeReg || header.Size <= 0 || header.Size > maximum {
+			return nil, fmt.Errorf("release file %s is invalid", name)
+		}
+		data, readErr := io.ReadAll(io.LimitReader(reader, maximum+1))
+		if readErr != nil || int64(len(data)) != header.Size {
+			return nil, fmt.Errorf("release file %s is invalid", name)
+		}
+		return data, nil
+	}
 }
 
 func extractBinary(archive []byte) ([]byte, error) {

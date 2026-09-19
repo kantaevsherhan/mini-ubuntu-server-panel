@@ -48,6 +48,7 @@ func (a API) firewallAddRule(c *fiber.Ctx) error {
 	claims := c.Locals("claims").(*auth.Claims)
 	details := fmt.Sprintf(`{"action":%q,"port":%d,"protocol":%q,"source":%q}`, request.Action, request.Port, request.Protocol, request.Source)
 	database.Audit(a.DB, claims.UserID, "firewall.rule.add", "firewall_rule", fmt.Sprintf("%s/%d", request.Protocol, request.Port), details, c.IP())
+	a.notify("security.firewall_changed", "critical", fmt.Sprintf("Firewall: %s %d/%s", request.Action, request.Port, request.Protocol), fmt.Sprintf("Источник: %s\nПользователь: %s, IP: %s", request.Source, claims.Username, c.IP()))
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -66,5 +67,6 @@ func (a API) firewallDeleteRule(c *fiber.Ctx) error {
 	}
 	claims := c.Locals("claims").(*auth.Claims)
 	database.Audit(a.DB, claims.UserID, "firewall.rule.delete", "firewall_rule", strconv.Itoa(number), `{"deleted":true}`, c.IP())
+	a.notify("security.firewall_changed", "critical", fmt.Sprintf("Firewall: удалено правило #%d", number), fmt.Sprintf("Пользователь: %s, IP: %s", claims.Username, c.IP()))
 	return c.SendStatus(fiber.StatusNoContent)
 }

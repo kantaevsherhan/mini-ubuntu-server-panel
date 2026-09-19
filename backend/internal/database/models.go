@@ -121,3 +121,20 @@ type SchemaMigration struct {
 	Version   string `gorm:"primaryKey"`
 	AppliedAt time.Time
 }
+
+type NotificationSubjectState struct {
+	EventKey        string `gorm:"primaryKey"`
+	Subject         string `gorm:"primaryKey"`
+	Active          bool
+	ActiveDedupKey  *string
+	LastEventID     *int64
+	LastTriggeredAt *time.Time
+	LastNotifiedAt  *time.Time
+	ResolvedAt      *time.Time
+}
+
+type MonitorSetting struct {
+	ID           int64 `gorm:"primaryKey"`
+	SettingsJSON string
+	UpdatedAt    time.Time
+}

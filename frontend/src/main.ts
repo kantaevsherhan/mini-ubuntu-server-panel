@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
 import ToastService from 'primevue/toastservice'
 import ConfirmationService from 'primevue/confirmationservice'
+import Tooltip from 'primevue/tooltip'
 import Aura from '@primeuix/themes/aura'
 import 'primeicons/primeicons.css'
 import './styles/main.css'
@@ -23,4 +24,5 @@ app
   })
   .use(ToastService)
   .use(ConfirmationService)
+  .directive('tooltip', Tooltip)
   .mount('#app')

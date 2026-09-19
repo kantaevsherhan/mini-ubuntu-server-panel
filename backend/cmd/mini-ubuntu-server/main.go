@@ -28,6 +28,7 @@ import (
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/httpapi"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/logs"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/metrics"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/monitor"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/notifications"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/processes"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/secrets"
@@ -152,7 +153,10 @@ func main() {
 		log.Fatal(err)
 	}
 	go metrics.NewCollector(db, time.Minute).Start(context.Background())
-	go notifications.New(db, notifications.TelegramSender{DB: db}).Run(context.Background())
+	notifier := notifications.New(db, notifications.TelegramSender{DB: db})
+	go notifier.Run(context.Background())
+	serverMonitor := monitor.New(db, notifier, dockerManager, serviceManager)
+	go serverMonitor.Run(context.Background())
 
 	app := fiber.New(fiber.Config{
 		AppName:               "Mini Ubuntu Server Panel",
@@ -181,7 +185,7 @@ func main() {
 	}))
 	app.Use(compress.New())
 
-	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Docker: dockerManager, Firewall: firewallManager, Logs: logManager, Files: filesManager, Terminal: terminalManager, Updates: updater.NewHTTPChecker(), Secret: cfg.JWTSecret, Version: version, DataDir: cfg.DataDir, LogDir: cfg.LogDir}.Register(app)
+	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Docker: dockerManager, Firewall: firewallManager, Logs: logManager, Files: filesManager, Terminal: terminalManager, Notifier: notifier, Monitor: serverMonitor, Updates: updater.NewHTTPChecker(), Secret: cfg.JWTSecret, Version: version, DataDir: cfg.DataDir, LogDir: cfg.LogDir}.Register(app)
 	root, err := fs.Sub(web, "web")
 	if err != nil {
 		log.Fatal(err)

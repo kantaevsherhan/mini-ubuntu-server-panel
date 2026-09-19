@@ -9,8 +9,10 @@ import (
 )
 
 type fakeEngine struct {
-	action string
-	id     string
+	engineClient
+	action  string
+	id      string
+	created client.ContainerCreateOptions
 }
 
 func (f *fakeEngine) ContainerList(context.Context, client.ContainerListOptions) (client.ContainerListResult, error) {
@@ -51,5 +53,58 @@ func TestValidateActionRejectsUnsafeValues(t *testing.T) {
 		if err := ValidateAction(value.id, value.action); err == nil {
 			t.Fatalf("unsafe action accepted: %#v", value)
 		}
+	}
+}
+
+func (f *fakeEngine) ContainerCreate(_ context.Context, options client.ContainerCreateOptions) (client.ContainerCreateResult, error) {
+	f.created = options
+	return client.ContainerCreateResult{ID: "abcdefabcdef"}, nil
+}
+
+func TestRunBuildsUnprivilegedContainer(t *testing.T) {
+	engine := &fakeEngine{}
+	manager := NewManagerWithClient(engine)
+	id, err := manager.Run(context.Background(), RunRequest{
+		Image: "nginx:1.27", Name: "web", RestartPolicy: "unless-stopped", Start: true,
+		Ports:   []PortMapping{{HostPort: 8080, ContainerPort: 80, Protocol: "tcp"}},
+		Env:     []string{"MODE=prod"},
+		Volumes: []VolumeMapping{{Source: "webdata", Target: "/usr/share/nginx/html"}},
+	})
+	if err != nil || id != "abcdefabcdef" || engine.action != "start" {
+		t.Fatalf("unexpected run: id=%q action=%q err=%v", id, engine.action, err)
+	}
+	host := engine.created.HostConfig
+	if host.Privileged || string(host.RestartPolicy.Name) != "unless-stopped" || len(host.PortBindings) != 1 || len(host.Mounts) != 1 {
+		t.Fatalf("unexpected host config: %#v", host)
+	}
+}
+
+func TestValidateRunRequestRejectsUnsafeValues(t *testing.T) {
+	cases := []RunRequest{
+		{Image: ""},
+		{Image: "nginx;rm -rf /"},
+		{Image: "nginx", Name: "../x"},
+		{Image: "nginx", RestartPolicy: "sometimes"},
+		{Image: "nginx", Ports: []PortMapping{{HostPort: 70000, ContainerPort: 80, Protocol: "tcp"}}},
+		{Image: "nginx", Ports: []PortMapping{{HostPort: 80, ContainerPort: 80, Protocol: "sctp"}}},
+		{Image: "nginx", Env: []string{"BAD NAME=1"}},
+		{Image: "nginx", Volumes: []VolumeMapping{{Source: "/", Target: "/host"}}},
+		{Image: "nginx", Volumes: []VolumeMapping{{Source: "/etc/ssh", Target: "/x"}}},
+		{Image: "nginx", Volumes: []VolumeMapping{{Source: "/var/run/docker.sock", Target: "/x"}}},
+		{Image: "nginx", Volumes: []VolumeMapping{{Source: "/srv/app", Target: "relative"}}},
+	}
+	for _, request := range cases {
+		if err := ValidateRunRequest(request); err == nil {
+			t.Fatalf("unsafe request accepted: %#v", request)
+		}
+	}
+	if err := ValidateRunRequest(RunRequest{Image: "ghcr.io/org/app@sha256:abc", Volumes: []VolumeMapping{{Source: "/srv/app", Target: "/data"}}}); err != nil {
+		t.Fatalf("valid request rejected: %v", err)
+	}
+}
+
+func TestPruneRejectsUnknownKind(t *testing.T) {
+	if _, err := NewManagerWithClient(&fakeEngine{}).Prune(context.Background(), "system"); err == nil {
+		t.Fatal("unknown prune kind accepted")
 	}
 }

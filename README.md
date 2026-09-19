@@ -8,18 +8,20 @@ Web-панель управления Ubuntu Server с backend на Go/Fiber и 
 
 ## Возможности
 
-- Dashboard с текущими и историческими CPU/RAM-метриками из `/proc`;
+- Dashboard: CPU/RAM/диск, аптайм, load average, признаки «нужна перезагрузка» и доступных обновлений apt, история метрик;
 - процессы Linux и allowlisted сигналы;
 - systemd services и защищённый собственный unit;
-- Docker containers через Moby SDK с явным opt-in к socket;
+- Docker через Moby SDK с явным opt-in к socket: контейнеры (start/stop/restart/pause/kill/remove, логи, запуск нового контейнера с портами, env, томами и restart policy), образы (фоновый pull, удаление), тома, сети и очистка (prune);
+- страница «Система»: ОС, ядро, CPU/load, память/swap, диски, сетевые интерфейсы и слушающие порты с переходом к открытию порта в UFW;
 - UFW rules с защитой SSH-порта;
 - bounded journald viewer;
 - файловый менеджер только внутри `allowed_directories` и Monaco Editor;
-- непривилегированный web-terminal с одноразовым WebSocket ticket;
+- непривилегированный web-terminal: до 8 вкладок, сессии продолжают работать на сервере после закрытия браузера и восстанавливаются с историей вывода (закрываются только вручную или при перезапуске сервиса);
 - отдельные panel users и Ubuntu users с compensating rollback;
-- Telegram recipients, правила, cooldown/recovery и durable delivery queue;
+- мониторинг с Telegram-уведомлениями: упавшие/unhealthy/перезапускающиеся Docker-контейнеры, failed и выбранные остановленные systemd-сервисы, CPU/RAM/swap/диски по порогам, вход администратора и изменения firewall; уведомления «восстановлено», отдельное состояние для каждого контейнера/сервиса/диска, настраиваемые интервал, пороги, исключения и получатели для каждого правила;
 - Audit и Notifications pages;
-- встроенные CLI-команды update/uninstall с backup и rollback.
+- встроенные CLI-команды update/uninstall с backup и rollback;
+- автообновление страниц только пока вкладка видна (пауза в фоне), кэш тяжёлых `/proc`-сканов.
 
 Системные изменения выполняются без произвольного shell: backend передаёт строго валидированный JSON через stdin точным root-helper subcommands. Секреты, terminal input и Ubuntu passwords не записываются в SQLite или audit.
 
@@ -139,6 +141,14 @@ sudo bash install.sh --enable-docker
 
 Installer проверяет Ubuntu/architecture/SHA-256, создаёт пользователя, config, secrets, SQLite, sudoers и systemd unit. Временный admin password показывается один раз и удаляется из environment file после успешного health-check; остаётся только bcrypt hash.
 
+## Telegram-уведомления
+
+1. Создайте бота у [@BotFather](https://t.me/BotFather) и отправьте своему боту `/start`.
+2. **Настройки → Telegram**: вставьте Bot Token (он сохраняется root-helper в `/etc/mini-ubuntu-server/secrets.env`, не попадает в SQLite и не возвращается в браузер), включите Telegram и нажмите «Проверить подключение».
+3. Добавьте получателя: ваш chat id (для личного чата совпадает с Telegram user id) или нажмите «Получить обновления» после `/start`. Отправьте тестовое сообщение.
+4. **Уведомления → Мониторинг**: интервал проверки (по умолчанию 60 с), какие контейнеры не отслеживать, за какими сервисами следить, пороги ресурсов.
+5. **Уведомления → Правила**: для каждого события включение, важность, cooldown, повтор, «восстановлено» и **получатели** — если получатели не выбраны, сообщение уходит всем активным получателям с включёнными алертами.
+
 ## Управление
 
 ```bash
@@ -159,7 +169,16 @@ sudo mini-ubuntu-server uninstall
 - `/var/lib/mini-ubuntu-server/backups`;
 - `/var/log/mini-ubuntu-server`.
 
-Все distribution scripts находятся только в `scripts/`: `install.sh`, `update.sh`, `uninstall.sh`, `release.sh`.
+Все distribution scripts находятся только в `scripts/`:
+
+| Скрипт | Назначение |
+|---|---|
+| `install.sh` | установка или переустановка из GitHub Release; `--update` вызывает `mini-ubuntu-server update` |
+| `update.sh` | обёртка над `mini-ubuntu-server update [--version vX.Y.Z]` |
+| `uninstall.sh` | обёртка над `mini-ubuntu-server uninstall` (по умолчанию данные, конфиг, бэкапы и пользователь сохраняются) |
+| `release.sh` | сборка архивов amd64/arm64 с встроенным frontend и `checksums.txt` |
+
+Повторный запуск `install.sh` сохраняет JWT secret, Telegram token, базу и пользователей; временный пароль выдаётся только при пустой базе. `update` проверяет SHA-256, делает бэкап binary, SQLite, sudoers и systemd unit, ставит sudoers/unit из релиза (с проверкой `visudo`), при неудачном health-check всё откатывает и хранит 5 последних бэкапов обновлений. Скрытые привилегированные подкоманды `privileged-*` вызываются только самой панелью через sudoers с JSON в stdin и не предназначены для ручного запуска.
 
 ## Документация
 

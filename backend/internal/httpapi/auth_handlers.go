@@ -38,6 +38,9 @@ func (a API) login(c *fiber.Ctx) error {
 	}
 	_ = a.DB.WithContext(c.UserContext()).Model(&user).Updates(map[string]any{"last_login_at": now, "updated_at": now}).Error
 	database.Audit(a.DB, user.ID, "auth.login", "user", strconv.FormatInt(user.ID, 10), "{}", c.IP())
+	if user.Role == "admin" {
+		a.notify("security.admin_login", "info", "Вход администратора: "+user.Username, "IP: "+c.IP())
+	}
 	return c.JSON(fiber.Map{"access_token": token, "token_type": "Bearer", "must_change_password": user.MustChangePassword, "username": user.Username, "role": user.Role})
 }
 func invalidCredentials(c *fiber.Ctx, db *gorm.DB, username string) error {

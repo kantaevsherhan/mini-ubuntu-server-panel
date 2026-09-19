@@ -20,6 +20,10 @@ type Event struct {
 	DedupKey string         `json:"dedup_key"`
 	Audience string         `json:"audience"`
 	Recovery bool           `json:"recovery"`
+	// Subject scopes alert state to one object (container name, unit, mountpoint).
+	Subject string `json:"subject,omitempty"`
+	// Instant events are delivered every time and never become active or resolved.
+	Instant bool `json:"instant,omitempty"`
 }
 type Sender interface {
 	Send(context.Context, int64, string) error
@@ -32,6 +36,30 @@ type Service struct {
 
 func New(db *gorm.DB, sender Sender) *Service {
 	return &Service{db: db, sender: sender, now: func() time.Time { return time.Now().UTC() }}
+}
+
+// alertState is the shared shape of notification_rule_states and notification_subject_states.
+type alertState struct {
+	Active          bool
+	ActiveDedupKey  *string
+	LastEventID     *int64
+	LastTriggeredAt *time.Time
+	LastNotifiedAt  *time.Time
+	ResolvedAt      *time.Time
+}
+
+// stateScope selects the per-rule row, or the per-object row when the event has a Subject.
+func stateScope(tx *gorm.DB, event Event) (*gorm.DB, error) {
+	if event.Subject == "" {
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&database.NotificationRuleState{EventKey: event.Key}).Error; err != nil {
+			return nil, err
+		}
+		return tx.Model(&database.NotificationRuleState{}).Where("event_key = ?", event.Key), nil
+	}
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&database.NotificationSubjectState{EventKey: event.Key, Subject: event.Subject}).Error; err != nil {
+		return nil, err
+	}
+	return tx.Model(&database.NotificationSubjectState{}).Where("event_key = ? AND subject = ?", event.Key, event.Subject), nil
 }
 
 func (s *Service) Enqueue(ctx context.Context, event Event) (int64, error) {
@@ -49,22 +77,27 @@ func (s *Service) Enqueue(ctx context.Context, event Event) (int64, error) {
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&defaultRule).Error; err != nil {
 			return err
 		}
-		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&database.NotificationRuleState{EventKey: event.Key}).Error; err != nil {
-			return err
-		}
 		var rule database.NotificationRule
-		var state database.NotificationRuleState
 		if err := tx.First(&rule, "event_key = ?", event.Key).Error; err != nil {
-			return err
-		}
-		if err := tx.First(&state, "event_key = ?", event.Key).Error; err != nil {
 			return err
 		}
 		if !rule.Enabled {
 			return nil
 		}
+		if event.Instant {
+			// One-shot events (logins, firewall changes) have no active/resolved lifecycle.
+			return s.createEvent(tx, event, rule, rule.Severity, event.DedupKey, payload, now, nil, &model)
+		}
+		scope, err := stateScope(tx, event)
+		if err != nil {
+			return err
+		}
+		var state alertState
+		if err := scope.Session(&gorm.Session{}).Take(&state).Error; err != nil {
+			return err
+		}
 		if event.Recovery {
-			return s.enqueueRecovery(tx, event, payload, rule, state, now, &model)
+			return s.enqueueRecovery(tx, scope, event, payload, rule, state, now, &model)
 		}
 		if state.Active && state.LastNotifiedAt != nil {
 			if rule.RepeatIntervalSeconds <= 0 || now.Before(state.LastNotifiedAt.Add(time.Duration(rule.RepeatIntervalSeconds)*time.Second)) {
@@ -83,31 +116,39 @@ func (s *Service) Enqueue(ctx context.Context, event Event) (int64, error) {
 		if state.Active {
 			dedupKey = fmt.Sprintf("%s:repeat:%d", event.DedupKey, now.UnixNano())
 		}
-		model = database.NotificationEvent{EventKey: event.Key, Severity: rule.Severity, PayloadJSON: string(payload), DedupKey: &dedupKey, Status: "pending", CreatedAt: now, UpdatedAt: &now}
-		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&model)
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return tx.Where("dedup_key = ?", dedupKey).First(&model).Error
-		}
-		if err := s.createDeliveries(tx, event.Audience, rule.EventKey, model.ID, now); err != nil {
+		if err := s.createEvent(tx, event, rule, rule.Severity, dedupKey, payload, now, nil, &model); err != nil {
 			return err
 		}
 		updates := map[string]any{"active": true, "active_dedup_key": event.DedupKey, "last_event_id": model.ID, "last_notified_at": now, "resolved_at": nil}
 		if !state.Active {
 			updates["last_triggered_at"] = now
 		}
-		return tx.Model(&state).Updates(updates).Error
+		return scope.Session(&gorm.Session{}).Updates(updates).Error
 	})
 	return model.ID, err
 }
 
-func (s *Service) enqueueRecovery(tx *gorm.DB, event Event, payload []byte, rule database.NotificationRule, state database.NotificationRuleState, now time.Time, model *database.NotificationEvent) error {
+func (s *Service) createEvent(tx *gorm.DB, event Event, rule database.NotificationRule, severity, dedupKey string, payload []byte, now time.Time, resolvedAt *time.Time, model *database.NotificationEvent) error {
+	*model = database.NotificationEvent{EventKey: event.Key, Severity: severity, PayloadJSON: string(payload), DedupKey: &dedupKey, Status: "pending", CreatedAt: now, UpdatedAt: &now, ResolvedAt: resolvedAt}
+	result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(model)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return tx.Where("dedup_key = ?", dedupKey).First(model).Error
+	}
+	return s.createDeliveries(tx, event.Audience, rule.EventKey, model.ID, now)
+}
+
+func (s *Service) enqueueRecovery(tx *gorm.DB, scope *gorm.DB, event Event, payload []byte, rule database.NotificationRule, state alertState, now time.Time, model *database.NotificationEvent) error {
 	if !state.Active {
 		return nil
 	}
-	if err := tx.Model(&database.NotificationEvent{}).Where("event_key = ? AND resolved_at IS NULL", event.Key).Updates(map[string]any{"status": "resolved", "resolved_at": now, "updated_at": now}).Error; err != nil {
+	resolve := tx.Model(&database.NotificationEvent{}).Where("event_key = ? AND resolved_at IS NULL", event.Key)
+	if event.Subject != "" {
+		resolve = resolve.Where("dedup_key LIKE ?", event.DedupKey+"%")
+	}
+	if err := resolve.Updates(map[string]any{"status": "resolved", "resolved_at": now, "updated_at": now}).Error; err != nil {
 		return err
 	}
 	if err := tx.Model(&database.NotificationDelivery{}).Where("status = ? AND event_id IN (?)", "pending", tx.Model(&database.NotificationEvent{}).Select("id").Where("event_key = ? AND resolved_at = ?", event.Key, now)).Update("status", "cancelled").Error; err != nil {
@@ -115,21 +156,16 @@ func (s *Service) enqueueRecovery(tx *gorm.DB, event Event, payload []byte, rule
 	}
 	stateUpdates := map[string]any{"active": false, "active_dedup_key": nil, "resolved_at": now}
 	if !rule.SendRecovery {
-		return tx.Model(&state).Updates(stateUpdates).Error
+		return scope.Session(&gorm.Session{}).Updates(stateUpdates).Error
 	}
 	dedupKey := fmt.Sprintf("%s:recovery:%d", event.DedupKey, now.UnixNano())
-	*model = database.NotificationEvent{EventKey: event.Key, Severity: "recovery", PayloadJSON: string(payload), DedupKey: &dedupKey, Status: "pending", CreatedAt: now, UpdatedAt: &now, ResolvedAt: &now}
-	if err := tx.Create(model).Error; err != nil {
-		return err
-	}
-	if err := s.createDeliveries(tx, event.Audience, rule.EventKey, model.ID, now); err != nil {
+	if err := s.createEvent(tx, event, rule, "recovery", dedupKey, payload, now, &now, model); err != nil {
 		return err
 	}
 	stateUpdates["last_event_id"] = model.ID
 	stateUpdates["last_notified_at"] = now
-	return tx.Model(&state).Updates(stateUpdates).Error
+	return scope.Session(&gorm.Session{}).Updates(stateUpdates).Error
 }
-
 func (s *Service) createDeliveries(tx *gorm.DB, audience, eventKey string, eventID int64, now time.Time) error {
 	var selectedCount int64
 	if err := tx.Model(&database.NotificationRuleRecipient{}).Where("event_key = ?", eventKey).Count(&selectedCount).Error; err != nil {

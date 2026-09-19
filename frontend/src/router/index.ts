@@ -12,6 +12,11 @@ const router = createRouter({
         { path: '', component: () => import('../pages/DashboardPage.vue') },
         { path: 'processes', component: () => import('../pages/ProcessesPage.vue') },
         {
+          path: 'system',
+          component: () => import('../pages/SystemPage.vue'),
+          meta: { roles: ['admin', 'operator'] },
+        },
+        {
           path: 'docker',
           component: () => import('../pages/DockerPage.vue'),
           meta: { roles: ['admin', 'operator'] },

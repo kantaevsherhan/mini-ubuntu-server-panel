@@ -1,5 +1,6 @@
 export interface APIErrorDetail {
   code: string
+  message?: string
   status?: number
   network: boolean
 }

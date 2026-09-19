@@ -14,12 +14,12 @@ import (
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/auth"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/database"
 	terminalmanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/terminal"
+	"gorm.io/gorm"
 )
 
 const (
 	terminalMaximumMessage = 16 * 1024
 	terminalMaximumInput   = 8 * 1024
-	terminalSessionLimit   = 4 * time.Hour
 )
 
 type terminalMessage struct {
@@ -64,6 +64,7 @@ func (a API) terminalUpgrade(c *fiber.Ctx) error {
 		return fiber.ErrUnauthorized
 	}
 	c.Locals("terminal_ticket", ticket)
+	c.Locals("terminal_session", c.Query("session"))
 	return websocket.New(a.terminalSocket, websocket.Config{
 		HandshakeTimeout:  5 * time.Second,
 		Subprotocols:      []string{terminalmanager.WebSocketSubprotocol},
@@ -75,53 +76,45 @@ func (a API) terminalUpgrade(c *fiber.Ctx) error {
 
 func (a API) terminalSocket(connection *websocket.Conn) {
 	ticket, ok := connection.Locals("terminal_ticket").(terminalmanager.Ticket)
-	if !ok || !a.Tickets.Acquire(ticket.UserID) {
-		_ = connection.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "session limit reached"), time.Now().Add(time.Second))
+	sessionID, _ := connection.Locals("terminal_session").(string)
+	if !ok || a.TerminalHub == nil {
 		return
 	}
-	defer a.Tickets.Release(ticket.UserID)
-
-	ctx, cancel := context.WithTimeout(context.Background(), terminalSessionLimit)
+	session, err := a.TerminalHub.Get(ticket.UserID, sessionID)
+	if err != nil {
+		_ = connection.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(4404, "terminal session not found"), time.Now().Add(time.Second))
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go a.monitorTerminalAuthorization(ctx, connection, ticket)
-	session, err := a.Terminal.Start(ctx, terminalmanager.DefaultColumns, terminalmanager.DefaultRows)
-	if err != nil {
-		_ = connection.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "terminal unavailable"), time.Now().Add(time.Second))
+
+	replay, output, detach := session.Attach()
+	defer detach()
+	if len(replay) > 0 && connection.WriteMessage(websocket.BinaryMessage, replay) != nil {
 		return
 	}
-	defer func() { _ = session.Wait() }()
-	defer func() { _ = session.Close() }()
-	database.Audit(a.DB, ticket.UserID, "terminal.session.start", "terminal_session", "", `{"commands":"not_recorded"}`, connection.RemoteAddr().String())
-	defer database.Audit(a.DB, ticket.UserID, "terminal.session.end", "terminal_session", "", `{"commands":"not_recorded"}`, connection.RemoteAddr().String())
-
 	connection.SetReadLimit(terminalMaximumMessage)
-	_ = connection.SetReadDeadline(time.Now().Add(terminalSessionLimit))
-	done := make(chan struct{})
-	go streamTerminalOutput(connection, session, done)
+	go streamTerminalOutput(connection, session, output)
 
 	windowStarted := time.Now()
 	messages := 0
 	for {
 		messageType, payload, readErr := connection.ReadMessage()
 		if readErr != nil {
-			break
+			return
 		}
 		if messageType != websocket.TextMessage || len(payload) > terminalMaximumMessage {
-			break
+			return
 		}
 		now := time.Now()
 		if now.Sub(windowStarted) >= 10*time.Second {
 			windowStarted, messages = now, 0
 		}
 		messages++
-		if messages > 120 || handleTerminalMessage(session, payload) != nil {
+		if messages > 400 || handleTerminalMessage(session, payload) != nil {
 			_ = connection.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "invalid terminal message"), time.Now().Add(time.Second))
-			break
-		}
-		select {
-		case <-done:
 			return
-		default:
 		}
 	}
 }
@@ -155,24 +148,32 @@ func (a API) terminalAuthorizationValid(ctx context.Context, ticket terminalmana
 	return session.RevokedAt == nil && session.ExpiresAt.After(time.Now().UTC())
 }
 
-func streamTerminalOutput(connection *websocket.Conn, session terminalmanager.Session, done chan<- struct{}) {
-	defer close(done)
-	buffer := make([]byte, 32*1024)
-	for {
-		count, err := session.Read(buffer)
-		if count > 0 && connection.WriteMessage(websocket.BinaryMessage, buffer[:count]) != nil {
-			return
-		}
-		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				_ = connection.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "terminal closed"), time.Now().Add(time.Second))
-			}
+// streamTerminalOutput forwards live shell output; when the channel closes the browser is either replaced,
+// too slow (it reconnects and replays scrollback) or the shell exited.
+func streamTerminalOutput(connection *websocket.Conn, session *terminalmanager.HubSession, output <-chan []byte) {
+	for chunk := range output {
+		if connection.WriteMessage(websocket.BinaryMessage, chunk) != nil {
 			return
 		}
 	}
+	reason, code := "terminal detached", 4000
+	select {
+	case <-session.Exited():
+		reason, code = "terminal closed", websocket.CloseNormalClosure
+	default:
+		if session.WasReplaced(output) {
+			reason, code = "terminal opened elsewhere", 4001
+		}
+	}
+	_ = connection.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason), time.Now().Add(time.Second))
+	_ = connection.Close()
 }
 
-func handleTerminalMessage(session terminalmanager.Session, payload []byte) error {
+func handleTerminalMessage(session interface {
+	io.Writer
+	Resize(uint16, uint16) error
+}, payload []byte) error {
+
 	var message terminalMessage
 	if json.Unmarshal(payload, &message) != nil {
 		return errors.New("invalid message")
@@ -227,4 +228,85 @@ func terminalTicketProtocol(header string) (string, bool) {
 		return "", false
 	}
 	return ticket, true
+}
+
+func terminalTitle(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) > 40 {
+		value = value[:40]
+	}
+	return strings.ToValidUTF8(value, "")
+}
+
+func (a API) terminalSessions(c *fiber.Ctx) error {
+	if a.TerminalHub == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "terminal_unavailable"})
+	}
+	claims := c.Locals("claims").(*auth.Claims)
+	return c.JSON(a.TerminalHub.List(claims.UserID))
+}
+
+func (a API) terminalCreateSession(c *fiber.Ctx) error {
+	if a.TerminalHub == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "terminal_unavailable"})
+	}
+	var request struct {
+		Title   string `json:"title"`
+		Columns uint16 `json:"columns"`
+		Rows    uint16 `json:"rows"`
+	}
+	_ = c.BodyParser(&request)
+	if request.Columns < 20 || request.Columns > 300 || request.Rows < 5 || request.Rows > 120 {
+		request.Columns, request.Rows = terminalmanager.DefaultColumns, terminalmanager.DefaultRows
+	}
+	claims := c.Locals("claims").(*auth.Claims)
+	title := terminalTitle(request.Title)
+	if title == "" {
+		title = "bash"
+	}
+	info, err := a.TerminalHub.Create(claims.UserID, title, request.Columns, request.Rows)
+	if errors.Is(err, terminalmanager.ErrSessionLimit) {
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": "terminal_session_limit"})
+	}
+	if err != nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "terminal_unavailable"})
+	}
+	database.Audit(a.DB, claims.UserID, "terminal.session.start", "terminal_session", info.ID, `{"commands":"not_recorded"}`, c.IP())
+	return c.Status(fiber.StatusCreated).JSON(info)
+}
+
+func (a API) terminalRenameSession(c *fiber.Ctx) error {
+	if a.TerminalHub == nil {
+		return fiber.ErrServiceUnavailable
+	}
+	var request struct {
+		Title string `json:"title"`
+	}
+	if err := c.BodyParser(&request); err != nil || terminalTitle(request.Title) == "" {
+		return fiber.ErrBadRequest
+	}
+	claims := c.Locals("claims").(*auth.Claims)
+	if err := a.TerminalHub.Rename(claims.UserID, c.Params("id"), terminalTitle(request.Title)); err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "terminal_session_not_found"})
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (a API) terminalCloseSession(c *fiber.Ctx) error {
+	if a.TerminalHub == nil {
+		return fiber.ErrServiceUnavailable
+	}
+	claims := c.Locals("claims").(*auth.Claims)
+	if err := a.TerminalHub.Close(claims.UserID, c.Params("id")); errors.Is(err, terminalmanager.ErrSessionNotFound) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "terminal_session_not_found"})
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (a API) terminalUserAllowed(ctx context.Context, userID int64) bool {
+	var user database.User
+	if err := a.DB.WithContext(ctx).First(&user, userID).Error; err != nil {
+		return !errors.Is(err, gorm.ErrRecordNotFound)
+	}
+	return user.IsActive && (user.Role == "admin" || user.Role == "operator")
 }
