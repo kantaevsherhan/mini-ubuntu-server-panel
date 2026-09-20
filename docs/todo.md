@@ -45,6 +45,7 @@
 - [x] Редизайн оболочки: сгруппированная навигация, сворачиваемый sidebar, переключатель темы, stat-карточки.
 - [x] Monitor: Docker/systemd/ресурсы → notification events; состояние по каждому объекту (`notification_subject_states`), instant-события безопасности, настройки в `monitor_settings`.
 - [x] Update ставит sudoers и systemd unit из релиза с `visudo`-проверкой и откатом, хранит 5 последних бэкапов; reinstall сохраняет JWT secret и Telegram token.
+- [x] Запуск с нуля одной командой: Dockerfile, docker compose, автогенерация JWT-секрета в data_dir и временного администратора, деградация терминала при отсутствии /bin/bash.
 - [ ] Изменение настроек сервера из панели (apt upgrade, reboot, hostname, timezone) через новые root-helper подкоманды.
 - [ ] Shell внутри Docker-контейнера (exec) и live CPU/RAM по контейнерам.
 - [x] Terminal: unprivileged PTY, xterm.js, resizable/fullscreen workspace и start/end audit без command logging.

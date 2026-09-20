@@ -54,9 +54,27 @@ Frontend:
 
 Интерфейс использует готовые PrimeVue-компоненты. По умолчанию активны Aura, dark mode и emerald accent; доступны Lara, light mode, blue/violet accents и только два языка — русский и английский. Даты форматируются общим Moment.js service: `DD.MM.YYYY HH:mm` для RU и `MM/DD/YYYY h:mm A` для EN.
 
-## Быстрый запуск для разработки
+## Быстрый запуск за одну команду
 
-Требуются Go 1.25+ и Bun 1.3+.
+Нужен только Docker. Ни Go, ни Bun, ни ручных миграций: схема SQLite применяется при старте, JWT-секрет и временный администратор создаются автоматически.
+
+```bash
+docker compose up -d --build
+docker compose logs panel | grep "temporary password"
+```
+
+Откройте <http://localhost:8080> и войдите под `admin` с паролем из лога — панель сразу попросит его сменить. Данные лежат в томе `panel-data`, поэтому пароль и сессии переживают `docker compose restart`.
+
+```bash
+docker compose down      # остановить, данные сохранятся
+docker compose down -v   # остановить и стереть базу, начать с нуля
+```
+
+Страницы Docker, systemd, UFW и journald внутри контейнера ожидаемо отвечают «сервис недоступен»: у контейнера нет доступа к хосту. Чтобы включить управление контейнерами, раскомментируйте проброс `/var/run/docker.sock` в `docker-compose.yml` (это root-equivalent доступ). Полный доступ ко всем возможностям даёт установка на Ubuntu из раздела [Установка](#установка).
+
+## Запуск для разработки
+
+Требуются Go 1.25+, Bun 1.3+ и Node.js (его требует `vue-tsc`).
 
 Frontend:
 
@@ -69,14 +87,11 @@ bun run dev
 Backend в другом terminal:
 
 ```bash
-export MINI_UBUNTU_SERVER_JWT_SECRET="$(openssl rand -hex 32)"
-export MINI_UBUNTU_SERVER_BOOTSTRAP_USERNAME=admin
-export MINI_UBUNTU_SERVER_BOOTSTRAP_PASSWORD='change-this-long-password'
 cd backend
 go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 ```
 
-Vite работает на `http://localhost:5173`, проксирует REST и WebSocket к `127.0.0.1:8080`. Bootstrap admin создаётся только для пустой базы; plaintext password не логируется.
+Vite работает на `http://localhost:5173`, проксирует REST и WebSocket к `127.0.0.1:8080`. Для пустой базы создаётся администратор `admin`, его временный пароль печатается в лог один раз. Переопределить можно переменными `MINI_UBUNTU_SERVER_BOOTSTRAP_USERNAME`, `MINI_UBUNTU_SERVER_BOOTSTRAP_PASSWORD` и `MINI_UBUNTU_SERVER_JWT_SECRET`; без последней секрет генерируется и хранится в `data_dir/jwt.key`.
 
 Production build со встроенным frontend:
 

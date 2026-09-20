@@ -1,0 +1,29 @@
+# Run the whole panel from scratch:
+#   docker compose up -d --build
+#   docker compose logs panel | grep "temporary password"
+# Open http://localhost:8080 and sign in as the administrator printed in the log.
+services:
+  panel:
+    build:
+      context: .
+      args:
+        VERSION: ${VERSION:-dev}
+    image: mini-ubuntu-server-panel:${VERSION:-dev}
+    container_name: mini-ubuntu-server-panel
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - panel-data:/var/lib/mini-ubuntu-server
+      # Docker page: mounting the socket is root-equivalent, so it is opt-in.
+      # Uncomment both lines and set user to "root" if you want to manage containers from the panel.
+      # - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # Optional: the panel generates and stores both automatically when they are not set.
+      # MINI_UBUNTU_SERVER_JWT_SECRET: ""
+      # MINI_UBUNTU_SERVER_BOOTSTRAP_USERNAME: admin
+      # MINI_UBUNTU_SERVER_BOOTSTRAP_PASSWORD: ""
+      TZ: ${TZ:-UTC}
+
+volumes:
+  panel-data:

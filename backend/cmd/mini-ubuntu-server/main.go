@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"embed"
+	"encoding/base64"
 	"errors"
 	"flag"
 	"fmt"
@@ -148,9 +150,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	terminalManager, err := terminalmanager.NewManager()
-	if err != nil {
-		log.Fatal(err)
+	// The shell is optional: the panel still runs where /bin/bash is absent.
+	var terminalController terminalmanager.Controller
+	if terminalManager, terminalErr := terminalmanager.NewManager(); terminalErr != nil {
+		log.Printf("terminal disabled: %v", terminalErr)
+	} else {
+		terminalController = terminalManager
 	}
 	go metrics.NewCollector(db, time.Minute).Start(context.Background())
 	notifier := notifications.New(db, notifications.TelegramSender{DB: db})
@@ -185,7 +190,7 @@ func main() {
 	}))
 	app.Use(compress.New())
 
-	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Docker: dockerManager, Firewall: firewallManager, Logs: logManager, Files: filesManager, Terminal: terminalManager, Notifier: notifier, Monitor: serverMonitor, Updates: updater.NewHTTPChecker(), Secret: cfg.JWTSecret, Version: version, DataDir: cfg.DataDir, LogDir: cfg.LogDir}.Register(app)
+	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Docker: dockerManager, Firewall: firewallManager, Logs: logManager, Files: filesManager, Terminal: terminalController, Notifier: notifier, Monitor: serverMonitor, Updates: updater.NewHTTPChecker(), Secret: cfg.JWTSecret, Version: version, DataDir: cfg.DataDir, LogDir: cfg.LogDir}.Register(app)
 	root, err := fs.Sub(web, "web")
 	if err != nil {
 		log.Fatal(err)
@@ -303,9 +308,18 @@ func bootstrap(db *gorm.DB) {
 	}
 	username := os.Getenv("MINI_UBUNTU_SERVER_BOOTSTRAP_USERNAME")
 	password := os.Getenv("MINI_UBUNTU_SERVER_BOOTSTRAP_PASSWORD")
-	if username == "" || password == "" {
-		log.Print("no users exist; set bootstrap environment variables")
-		return
+	generated := false
+	if username == "" {
+		username = "admin"
+	}
+	if password == "" {
+		// An empty database would otherwise be unusable; print the temporary password once.
+		raw := make([]byte, 18)
+		if _, err := rand.Read(raw); err != nil {
+			log.Fatal(err)
+		}
+		password = base64.RawURLEncoding.EncodeToString(raw)
+		generated = true
 	}
 	hash, err := auth.Hash(password)
 	if err != nil {
@@ -314,6 +328,10 @@ func bootstrap(db *gorm.DB) {
 	user := database.User{Username: username, DisplayName: "Administrator", PasswordHash: hash, Role: "admin", IsActive: true, MustChangePassword: true}
 	if err := db.Create(&user).Error; err != nil {
 		log.Fatal(err)
+	}
+	if generated {
+		log.Printf("bootstrap administrator %q created with temporary password: %s (shown once, must be changed at first login)", username, password)
+		return
 	}
 	log.Printf("bootstrap administrator %q created; password is not logged", username)
 }

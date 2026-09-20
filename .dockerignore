@@ -1,0 +1,13 @@
+.git
+.github
+dist
+docs
+frontend/node_modules
+frontend/dist
+frontend/test-results
+frontend/playwright-report
+backend/cmd/mini-ubuntu-server/web/assets
+backend/cmd/mini-ubuntu-server/web/index.html
+**/*.db
+**/*.db-wal
+**/*.db-shm
