@@ -256,7 +256,7 @@ func (m Manager) Logs(ctx context.Context, id string, tail int) (string, error) 
 	if err != nil {
 		return "", mapError(err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	limited := io.LimitReader(reader, maxLogBytes)
 	var output bytes.Buffer
 	if inspect.Container.Config != nil && inspect.Container.Config.Tty {

@@ -43,7 +43,10 @@ import (
 
 var version = "dev"
 
-//go:embed web/* web-placeholder.html
+// The all: prefix keeps Vite chunks whose names start with "_" (e.g.
+// _plugin-vue_export-helper-*.js); plain patterns silently skip them.
+//
+//go:embed all:web web-placeholder.html
 var web embed.FS
 
 func main() {
@@ -283,6 +286,10 @@ func staticFrontend(root fs.FS) fiber.Handler {
 			path = "index.html"
 		}
 		data, err := fs.ReadFile(root, path)
+		if err != nil && strings.HasPrefix(path, "assets/") {
+			// A missing bundle file must fail loudly, not as HTML parsed as JavaScript.
+			return fiber.ErrNotFound
+		}
 		if err != nil {
 			data, err = fs.ReadFile(root, "index.html")
 		}
