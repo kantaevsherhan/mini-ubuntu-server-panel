@@ -30,6 +30,12 @@ export function useNavigation() {
         items: [
           { label: t.value.dashboard, icon: 'pi pi-objects-column', path: '/', roles: [] },
           { label: t.value.system, icon: 'pi pi-server', path: '/system', roles: staff },
+          {
+            label: t.value.packageUpdates,
+            icon: 'pi pi-download',
+            path: '/updates',
+            roles: staff,
+          },
         ],
       },
       {

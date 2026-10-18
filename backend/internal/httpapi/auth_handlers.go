@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -27,7 +28,24 @@ func (a API) login(c *fiber.Ctx) error {
 		return invalidCredentials(c, a.DB, request.Username)
 	}
 
-	token, sessionID, expiresAt, err := auth.Sign(a.Secret, user.ID, request.Username, user.Role)
+	enabled, err := a.twoFactorEnabled(a.DB.WithContext(c.UserContext()), user.ID)
+	if err != nil {
+		return err
+	}
+	if enabled {
+		challenge, err := auth.SignChallenge(a.Secret, user.ID)
+		if err != nil {
+			return err
+		}
+		database.Audit(a.DB, user.ID, "auth.mfa.challenge", "user", strconv.FormatInt(user.ID, 10), "{}", c.IP())
+		return c.JSON(fiber.Map{"mfa_required": true, "mfa_token": challenge})
+	}
+	return a.completeLogin(c, user, "password")
+}
+
+// completeLogin creates the web session once every required factor is verified.
+func (a API) completeLogin(c *fiber.Ctx, user database.User, method string) error {
+	token, sessionID, expiresAt, err := auth.Sign(a.Secret, user.ID, user.Username, user.Role)
 	if err != nil {
 		return err
 	}
@@ -37,7 +55,7 @@ func (a API) login(c *fiber.Ctx) error {
 		return err
 	}
 	_ = a.DB.WithContext(c.UserContext()).Model(&user).Updates(map[string]any{"last_login_at": now, "updated_at": now}).Error
-	database.Audit(a.DB, user.ID, "auth.login", "user", strconv.FormatInt(user.ID, 10), "{}", c.IP())
+	database.Audit(a.DB, user.ID, "auth.login", "user", strconv.FormatInt(user.ID, 10), fmt.Sprintf(`{"method":%q}`, method), c.IP())
 	if user.Role == "admin" {
 		a.notify("security.admin_login", "info", "Вход администратора: "+user.Username, "IP: "+c.IP())
 	}

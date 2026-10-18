@@ -45,3 +45,24 @@ func TestJWTRejectsWrongSecret(t *testing.T) {
 		t.Fatal("expected signature verification failure")
 	}
 }
+
+func TestChallengeTokensAreNotAccessTokens(t *testing.T) {
+	secret := "01234567890123456789012345678901"
+	challenge, err := SignChallenge(secret, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id, jti, err := ParseChallenge(secret, challenge); err != nil || id != 7 || jti == "" {
+		t.Fatalf("challenge parse failed: id=%d jti=%q err=%v", id, jti, err)
+	}
+	if _, err := Parse(secret, challenge); err == nil {
+		t.Fatal("challenge token accepted as access token")
+	}
+	access, _, _, err := Sign(secret, 7, "admin", "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := ParseChallenge(secret, access); err == nil {
+		t.Fatal("access token accepted as challenge")
+	}
+}

@@ -17,12 +17,18 @@ go run ./cmd/mini-ubuntu-server --config ../packaging/config.example.yml
 | Method | Endpoint | Доступ |
 |---|---|---|
 | GET | `/health` | public |
-| POST | `/auth/login` | public, rate-limited |
+| POST | `/auth/login` | public, rate-limited; при включённой 2FA возвращает `mfa_required` и `mfa_token` |
+| POST | `/auth/login/mfa` | public, rate-limited; `mfa_token` + TOTP или код восстановления |
 | GET | `/me` | authenticated |
 | POST | `/auth/password` | authenticated |
 | POST | `/auth/logout` | authenticated |
 | GET | `/auth/sessions` | authenticated |
 | DELETE | `/auth/sessions/:id` | authenticated, own sessions |
+| GET | `/auth/2fa` | authenticated |
+| POST | `/auth/2fa/setup` · `/enable` · `/disable` · `/recovery-codes` | authenticated; setup требует пароль, disable/recovery-codes — пароль и второй фактор |
+| POST | `/users/:id/reset-2fa` | admin |
+| GET | `/apt` · `/apt/job` | admin/operator |
+| POST | `/apt/refresh` · `/apt/upgrade` | admin; `upgrade` принимает необязательный `{"packages": [...]}` |
 | GET | `/dashboard` | authenticated |
 | GET | `/metrics/history?range=day|week|month|all` | authenticated |
 | GET | `/settings/overview` | admin/operator |
@@ -87,6 +93,8 @@ HTTP слой разделён по предметным handler-файлам д
 - запускает `useradd`/`userdel` через массив аргументов без shell;
 - проверяет формат публичного SSH-ключа и выставляет права `.ssh`/`authorized_keys`;
 - не принимает и не хранит Ubuntu-пароли.
+
+Обновления ОС идут через exact subcommand `privileged-apt`. Список пакетов строится непривилегированной симуляцией `apt-get -s upgrade --with-new-pkgs`. Изменения выполняет root-helper: он запускает `apt-get update`, `apt-get upgrade --with-new-pkgs` или `apt-get install --only-upgrade <пакеты>` через `systemd-run` в transient unit `mini-ubuntu-server-apt` с `RemainAfterExit=yes`, `DEBIAN_FRONTEND=noninteractive`, `NEEDRESTART_MODE=a`, `DPkg::Lock::Timeout=120` и `--force-confold`. Отдельный unit нужен потому, что сервис панели работает с `ProtectSystem=strict`, а дочерний процесс apt унаследовал бы read-only `/usr`; заодно установка не прерывается при перезапуске панели. Состояние задачи и последние 400 строк вывода читаются через `systemctl show` и `journalctl _SYSTEMD_INVOCATION_ID=…`; одновременно может выполняться только одна задача.
 
 Bot Token изменяется отдельным exact subcommand `privileged-secret telegram-token`. Значение проходит allowlist-валидацию, поступает через stdin, атомарно заменяется в `secrets.env` с сохранением owner/mode и никогда не попадает в argv, SQLite, ответ API или аудит. Telegram client перечитывает файл перед запросом, поэтому restart сервиса не нужен.
 

@@ -17,6 +17,11 @@ const router = createRouter({
           meta: { roles: ['admin', 'operator'] },
         },
         {
+          path: 'updates',
+          component: () => import('../pages/UpdatesPage.vue'),
+          meta: { roles: ['admin', 'operator'] },
+        },
+        {
           path: 'docker',
           component: () => import('../pages/DockerPage.vue'),
           meta: { roles: ['admin', 'operator'] },

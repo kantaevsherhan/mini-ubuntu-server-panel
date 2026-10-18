@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
@@ -34,6 +35,7 @@ interface PanelUser {
   system_username: string | null
   created_at: string
   last_login_at: string | null
+  two_factor_enabled: boolean
 }
 
 interface WebSession {
@@ -98,6 +100,7 @@ const deleteOptions = reactive({
   terminate_sessions: false,
 })
 const toast = useToast()
+const confirm = useConfirm()
 const authStore = useAuthStore()
 const { t, locale } = useI18n()
 
@@ -199,6 +202,21 @@ async function showSessions(user: PanelUser) {
   sessionsVisible.value = true
 }
 
+function resetTwoFactor(user: PanelUser) {
+  confirm.require({
+    header: t.value.resetTwoFactor,
+    message: t.value.resetTwoFactorConfirm.replace('{user}', user.username),
+    icon: 'pi pi-exclamation-triangle',
+    rejectProps: { label: t.value.cancel, severity: 'secondary', text: true },
+    acceptProps: { label: t.value.resetTwoFactor, severity: 'danger' },
+    accept: async () => {
+      await api.post(`/users/${user.id}/reset-2fa`)
+      toast.add({ severity: 'success', summary: t.value.twoFactorReset, life: 3000 })
+      await load()
+    },
+  })
+}
+
 function remove(user: PanelUser) {
   selected.value = user
   Object.assign(deleteOptions, {
@@ -273,6 +291,13 @@ onMounted(load)
             :severity="data.is_active ? 'success' : 'secondary'"
             :value="data.is_active ? t.active : t.disabled" /></template
       ></Column>
+      <Column header="2FA"
+        ><template #body="{ data }"
+          ><Tag
+            :severity="data.two_factor_enabled ? 'success' : 'secondary'"
+            :icon="data.two_factor_enabled ? 'pi pi-shield' : 'pi pi-minus'"
+            :value="data.two_factor_enabled ? t.twoFactorEnabled : t.twoFactorDisabled" /></template
+      ></Column>
       <Column frozen align-frozen="right">
         <template #body="{ data }">
           <div class="flex justify-end gap-1">
@@ -291,6 +316,16 @@ onMounted(load)
               rounded
               :aria-label="t.resetPassword"
               @click="openReset(data)"
+            />
+            <Button
+              v-if="authStore.role === 'admin' && data.two_factor_enabled"
+              v-tooltip.top="t.resetTwoFactor"
+              icon="pi pi-shield"
+              text
+              rounded
+              severity="warn"
+              :aria-label="t.resetTwoFactor"
+              @click="resetTwoFactor(data)"
             />
             <Button
               icon="pi pi-desktop"

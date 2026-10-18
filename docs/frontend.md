@@ -42,7 +42,13 @@ bun audit
 
 `check` запускает Prettier check, ESLint без warnings, TypeScript и production build. Маршруты загружаются лениво для уменьшения начального bundle.
 
-`bun run e2e` запускает Playwright в desktop Chromium 1440×900 и mobile Pixel 7 projects. Smoke мокирует API на network boundary и проверяет Dashboard, responsive Drawer/sidebar, Settings, Audit, Notifications, командную палитру `Ctrl+K`, индикатор «Нет связи», отсутствие page overflow и PrimeVue Toast для server errors. Layout монтирует ровно один `RouterView` через `matchMedia`, поэтому hidden breakpoint не создаёт дублирующие API-запросы.
+`bun run e2e` запускает Playwright в desktop Chromium 1440×900 и mobile Pixel 7 projects. Smoke мокирует API на network boundary и проверяет Dashboard, responsive Drawer/sidebar, Settings, Audit, Notifications, командную палитру `Ctrl+K`, индикатор «Нет связи», второй шаг входа с 2FA, страницу обновлений apt, отсутствие page overflow и PrimeVue Toast для server errors. Layout монтирует ровно один `RouterView` через `matchMedia`, поэтому hidden breakpoint не создаёт дублирующие API-запросы.
+
+Вход с 2FA состоит из двух шагов: после пароля `LoginPage` показывает PrimeVue `InputOtp` (автоотправка на шестой цифре) или поле кода восстановления; challenge-токен хранится только в памяти Pinia store. `TwoFactorSettings` на вкладке «Безопасность» ведёт через пароль → QR-код (`qrcode` загружается лениво) → подтверждение кода → показ кодов восстановления с копированием и скачиванием; секреты очищаются при закрытии диалога. В таблице пользователей есть колонка 2FA и admin-действие сброса с `ConfirmDialog`.
+
+Страница «Обновления ОС» (`/updates`) показывает доступные пакеты с выбором, security/new-тегами и virtual scroll для длинных списков, карточки последней проверки и unattended-upgrades, предупреждение о перезагрузке и лог текущей apt-задачи. Пока задача выполняется, `/apt/job` опрашивается раз в 2 секунды, полный список — раз в минуту.
+
+`moment` подключается через alias на ESM-сборку (`moment/dist/moment.js`) вместе с `moment/dist/locale/ru.js`: иначе UMD-entry и UMD-локаль попадали в bundle дважды и русская локаль регистрировалась не в том экземпляре.
 
 Шрифты Geist (интерфейс) и JetBrains Mono (терминал, Monaco, код) поставляются через `@fontsource-variable` внутри бинарника, без CDN; Vite не инлайнит их в `data:` из-за CSP `font-src 'self'`.
 

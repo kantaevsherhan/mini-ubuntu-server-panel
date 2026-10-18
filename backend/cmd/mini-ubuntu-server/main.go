@@ -21,6 +21,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/aptupdates"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/auth"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/config"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/database"
@@ -87,6 +88,12 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) == 2 && os.Args[1] == "privileged-apt" {
+		if err := aptupdates.RunPrivileged(os.Stdin, os.Stdout); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == "privileged-logs" {
 		if err := logs.RunPrivileged(os.Stdin, os.Stdout); err != nil {
 			log.Fatal(err)
@@ -145,6 +152,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	aptManager, err := aptupdates.NewManager()
+	if err != nil {
+		log.Fatal(err)
+	}
 	logManager, err := logs.NewManager()
 	if err != nil {
 		log.Fatal(err)
@@ -193,7 +204,7 @@ func main() {
 	}))
 	app.Use(compress.New())
 
-	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Docker: dockerManager, Firewall: firewallManager, Logs: logManager, Files: filesManager, Terminal: terminalController, Notifier: notifier, Monitor: serverMonitor, Updates: updater.NewHTTPChecker(), Secret: cfg.JWTSecret, Version: version, DataDir: cfg.DataDir, LogDir: cfg.LogDir}.Register(app)
+	httpapi.API{DB: db, SystemUsers: systemUserClient, Secrets: secretWriter, Processes: processManager, Services: serviceManager, Docker: dockerManager, Firewall: firewallManager, Apt: aptManager, Logs: logManager, Files: filesManager, Terminal: terminalController, Notifier: notifier, Monitor: serverMonitor, Updates: updater.NewHTTPChecker(), Secret: cfg.JWTSecret, Version: version, DataDir: cfg.DataDir, LogDir: cfg.LogDir}.Register(app)
 	root, err := fs.Sub(web, "web")
 	if err != nil {
 		log.Fatal(err)

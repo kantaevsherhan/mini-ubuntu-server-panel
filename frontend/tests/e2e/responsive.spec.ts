@@ -146,6 +146,84 @@ test('header shows offline state when the server is unreachable', async ({ page 
   await expect(page.getByRole('status', { name: 'Нет связи' })).toBeVisible()
 })
 
+test('login asks for the second factor before opening the panel', async ({ page }) => {
+  let codeSent = ''
+  await page.addInitScript(() => sessionStorage.clear())
+  await page.route('**/api/v1/auth/login', (route) =>
+    route.fulfill({ json: { mfa_required: true, mfa_token: 'challenge' } }),
+  )
+  await page.route('**/api/v1/auth/login/mfa', async (route) => {
+    codeSent = route.request().postDataJSON().code
+    await route.fulfill({
+      json: { access_token: 'e2e-token', username: 'admin', role: 'admin' },
+    })
+  })
+  await page.goto('/login')
+  await page.locator('input#password, #password input').first().fill('admin-password')
+  await page.getByRole('button', { name: 'Войти' }).click()
+  await expect(page.getByText('Подтверждение входа')).toBeVisible()
+  await expect(page.locator('.login-otp input').first()).toBeFocused()
+  await page.keyboard.type('123456')
+  await expect(page.getByRole('heading', { name: 'Состояние сервера' })).toBeVisible()
+  expect(codeSent).toBe('123456')
+})
+
+test('apt updates page lists packages and starts an upgrade', async ({ page }) => {
+  let upgradeBody: unknown = 'not-called'
+  await page.route('**/api/v1/apt', (route) =>
+    route.fulfill({
+      json: {
+        packages: [
+          {
+            name: 'openssl',
+            current: '3.0.13-0ubuntu3.4',
+            candidate: '3.0.13-0ubuntu3.5',
+            origin: 'Ubuntu:24.04/noble-security',
+            security: true,
+            new: false,
+          },
+          {
+            name: 'tzdata',
+            current: '2024a-3ubuntu1',
+            candidate: '2024b-0ubuntu0.24.04',
+            origin: 'Ubuntu:24.04/noble-updates',
+            security: false,
+            new: false,
+          },
+        ],
+        security_count: 1,
+        last_refresh: '2026-07-24T11:00:00Z',
+        reboot_required: false,
+        reboot_packages: [],
+        auto_upgrades: { installed: true, enabled: true },
+        job: { state: 'idle', log: [] },
+      },
+    }),
+  )
+  await page.route('**/api/v1/apt/upgrade', async (route) => {
+    upgradeBody = route.request().postData()
+    await route.fulfill({ status: 202, body: '' })
+  })
+  await page.route('**/api/v1/apt/job', (route) =>
+    route.fulfill({
+      json: { state: 'running', operation: 'upgrade', log: ['Unpacking openssl ...'] },
+    }),
+  )
+  await page.goto('/updates')
+  await expect(page.getByRole('heading', { name: 'Обновления пакетов' })).toBeVisible()
+  await expect(page.getByText('openssl', { exact: true })).toBeVisible()
+  // Relative time must use the Russian moment locale, not fall back to English.
+  await expect(page.getByText(/назад$/)).toBeVisible()
+  await page.getByRole('button', { name: 'Обновить всё' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Подтвердить' }).click()
+  await expect(page.getByText('Unpacking openssl ...')).toBeVisible()
+  expect(upgradeBody).toBeNull()
+  const overflows = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth + 1,
+  )
+  expect(overflows).toBe(false)
+})
+
 test('audit and notification modules render real responsive pages', async ({ page }) => {
   await page.goto('/audit')
   await expect(page.getByRole('heading', { name: 'Аудит' })).toBeVisible()

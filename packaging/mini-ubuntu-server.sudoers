@@ -6,3 +6,4 @@ mini-ubuntu-server ALL=(root) NOPASSWD: /opt/mini-ubuntu-server/bin/mini-ubuntu-
 mini-ubuntu-server ALL=(root) NOPASSWD: /opt/mini-ubuntu-server/bin/mini-ubuntu-server privileged-firewall
 mini-ubuntu-server ALL=(root) NOPASSWD: /opt/mini-ubuntu-server/bin/mini-ubuntu-server privileged-logs
 mini-ubuntu-server ALL=(root) NOPASSWD: /opt/mini-ubuntu-server/bin/mini-ubuntu-server privileged-files
+mini-ubuntu-server ALL=(root) NOPASSWD: /opt/mini-ubuntu-server/bin/mini-ubuntu-server privileged-apt

@@ -1,5 +1,5 @@
 import moment, { type MomentInput } from 'moment'
-import 'moment/locale/ru'
+import 'moment/dist/locale/ru.js'
 import type { Locale } from '../stores/preferences'
 
 const formats: Record<Locale, string> = {

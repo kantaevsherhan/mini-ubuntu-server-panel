@@ -7,6 +7,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
+	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/aptupdates"
 	"github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/database"
 	dockermanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/docker"
 	filemanager "github.com/kantaevsherhan/mini-ubuntu-server-panel/backend/internal/files"
@@ -33,10 +34,12 @@ type API struct {
 	Services    services.Controller
 	Docker      dockermanager.Controller
 	Firewall    firewall.Controller
+	Apt         aptupdates.Controller
 	Logs        logs.Controller
 	Files       filemanager.Controller
 	Terminal    terminalmanager.Controller
 	Tickets     *terminalmanager.TicketStore
+	Challenges  *challengeGuard
 	TerminalHub *terminalmanager.Hub
 	System      *sysinfo.Collector
 	Notifier    monitor.Notifier
@@ -74,6 +77,9 @@ func (a API) Register(app *fiber.App) {
 	if a.Tickets == nil {
 		a.Tickets = terminalmanager.NewTicketStore()
 	}
+	if a.Challenges == nil {
+		a.Challenges = newChallengeGuard()
+	}
 	if a.TerminalHub == nil && a.Terminal != nil {
 		a.TerminalHub = terminalmanager.NewHub(a.Terminal)
 		db := a.DB
@@ -93,6 +99,14 @@ func (a API) Register(app *fiber.App) {
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": "too_many_login_attempts"})
 		},
 	}), a.login)
+	api.Post("/auth/login/mfa", limiter.New(limiter.Config{
+		Max:        10,
+		Expiration: 15 * time.Minute,
+		LimitReached: func(c *fiber.Ctx) error {
+			database.Audit(a.DB, nil, "auth.rate_limited", "ip", "", `{"step":"mfa"}`, c.IP())
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": "too_many_login_attempts"})
+		},
+	}), a.loginSecondFactor)
 	api.Get("/terminal/ws", a.terminalUpgrade)
 
 	secured := api.Group("", a.authorize)
@@ -101,6 +115,11 @@ func (a API) Register(app *fiber.App) {
 	secured.Post("/auth/logout", a.logout)
 	secured.Get("/auth/sessions", a.sessions)
 	secured.Delete("/auth/sessions/:id", a.revokeSession)
+	secured.Get("/auth/2fa", a.twoFactorStatus)
+	secured.Post("/auth/2fa/setup", a.twoFactorSetup)
+	secured.Post("/auth/2fa/enable", a.twoFactorEnable)
+	secured.Post("/auth/2fa/disable", a.twoFactorDisable)
+	secured.Post("/auth/2fa/recovery-codes", a.twoFactorRecoveryCodes)
 	secured.Get("/dashboard", a.dashboard)
 	secured.Get("/metrics/history", a.metricsHistory)
 	secured.Get("/settings/overview", a.requireRole("admin", "operator"), a.settingsOverview)
@@ -128,6 +147,10 @@ func (a API) Register(app *fiber.App) {
 	secured.Get("/firewall", a.requireRole("admin", "operator"), a.firewallStatus)
 	secured.Post("/firewall/rules", a.requireRole("admin"), a.firewallAddRule)
 	secured.Delete("/firewall/rules/:number", a.requireRole("admin"), a.firewallDeleteRule)
+	secured.Get("/apt", a.requireRole("admin", "operator"), a.aptStatus)
+	secured.Get("/apt/job", a.requireRole("admin", "operator"), a.aptJob)
+	secured.Post("/apt/refresh", a.requireRole("admin"), a.aptStart("refresh"))
+	secured.Post("/apt/upgrade", a.requireRole("admin"), a.aptStart("upgrade"))
 	secured.Get("/logs", a.requireRole("admin", "operator"), a.logsList)
 	secured.Get("/files/roots", a.requireRole("admin", "operator"), a.fileRoots)
 	secured.Get("/files", a.requireRole("admin", "operator"), a.fileList)
@@ -146,6 +169,7 @@ func (a API) Register(app *fiber.App) {
 	secured.Patch("/users/:id", a.requireRole("admin"), a.updateUser)
 	secured.Delete("/users/:id", a.requireRole("admin"), a.deleteUser)
 	secured.Post("/users/:id/reset-password", a.requireRole("admin"), a.resetUserPassword)
+	secured.Post("/users/:id/reset-2fa", a.requireRole("admin"), a.resetUserTwoFactor)
 	secured.Get("/users/:id/sessions", a.requireRole("admin", "operator"), a.userSessions)
 	secured.Get("/users/:id/system-details", a.requireRole("admin", "operator"), a.userSystemDetails)
 	secured.Get("/system-users", a.requireRole("admin", "operator"), a.systemUsers)

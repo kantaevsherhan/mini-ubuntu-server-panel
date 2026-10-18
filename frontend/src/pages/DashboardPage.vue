@@ -145,7 +145,12 @@ useAutoRefresh(load, 30000)
         <i class="pi pi-refresh mr-2" />{{ t.rebootRequired }}
       </Message>
       <Message v-if="system.updates_summary" severity="info" :closable="false">
-        <div class="whitespace-pre-line text-sm">{{ system.updates_summary }}</div>
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex-1 whitespace-pre-line text-sm">{{ system.updates_summary }}</div>
+          <RouterLink to="/updates" class="text-sm font-medium text-[var(--p-primary-color)]"
+            >{{ t.openUpdates }} →</RouterLink
+          >
+        </div>
       </Message>
     </div>
 

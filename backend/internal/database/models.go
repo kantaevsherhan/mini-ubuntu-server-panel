@@ -138,3 +138,24 @@ type MonitorSetting struct {
 	SettingsJSON string
 	UpdatedAt    time.Time
 }
+
+// UserTOTP holds a user's sealed TOTP secret. A pending secret exists only during
+// enrollment, until the first valid code confirms the authenticator app.
+type UserTOTP struct {
+	UserID              int64 `gorm:"primaryKey"`
+	SecretSealed        *string
+	PendingSecretSealed *string
+	PendingCreatedAt    *time.Time
+	EnabledAt           *time.Time
+	LastStep            int64
+}
+
+func (UserTOTP) TableName() string { return "user_totp" }
+
+type UserRecoveryCode struct {
+	ID        int64 `gorm:"primaryKey"`
+	UserID    int64 `gorm:"index"`
+	CodeHash  string
+	UsedAt    *time.Time
+	CreatedAt time.Time
+}

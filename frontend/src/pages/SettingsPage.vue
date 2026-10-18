@@ -16,6 +16,7 @@ import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import TelegramSettings from '../components/TelegramSettings.vue'
 import NotificationSettings from '../components/NotificationSettings.vue'
+import TwoFactorSettings from '../components/TwoFactorSettings.vue'
 import api from '../services/api'
 import { useI18n } from '../services/i18n'
 import { useAuthStore } from '../stores/auth'
@@ -386,6 +387,7 @@ onMounted(() => {
         /></TabPanel>
 
         <TabPanel value="security">
+          <div class="mb-4 max-w-4xl"><TwoFactorSettings /></div>
           <Card class="max-w-4xl"
             ><template #title>{{ t.security }}</template
             ><template #content

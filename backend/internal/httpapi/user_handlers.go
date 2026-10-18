@@ -21,9 +21,17 @@ func (a API) users(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	var enrolled []int64
+	if err := a.DB.WithContext(c.UserContext()).Model(&database.UserTOTP{}).Where("enabled_at IS NOT NULL AND secret_sealed IS NOT NULL").Pluck("user_id", &enrolled).Error; err != nil {
+		return err
+	}
+	twoFactor := make(map[int64]bool, len(enrolled))
+	for _, id := range enrolled {
+		twoFactor[id] = true
+	}
 	result := make([]fiber.Map, 0)
 	for _, user := range users {
-		result = append(result, fiber.Map{"id": user.ID, "username": user.Username, "display_name": user.DisplayName, "role": user.Role, "is_active": user.IsActive, "system_username": user.SystemUsername, "created_at": user.CreatedAt, "last_login_at": user.LastLoginAt})
+		result = append(result, fiber.Map{"id": user.ID, "username": user.Username, "display_name": user.DisplayName, "role": user.Role, "is_active": user.IsActive, "system_username": user.SystemUsername, "created_at": user.CreatedAt, "last_login_at": user.LastLoginAt, "two_factor_enabled": twoFactor[user.ID]})
 	}
 	return c.JSON(result)
 }

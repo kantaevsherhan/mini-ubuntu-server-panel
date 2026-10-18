@@ -17,6 +17,8 @@
 - Telegram URL validation и SSRF-защита для private/link-local адресов;
 - GORM с параметризованными runtime queries; raw SQL разрешён только в versioned migrations;
 - аудит входов и административных операций;
+- TOTP 2FA (RFC 6238, SHA-1/6 цифр/30 с, окно ±1 шаг): секрет хранится в SQLite зашифрованным AES-256-GCM ключом, производным от JWT secret; повтор кода блокируется сохранением последнего шага; пароль выдаёт только 5-минутный challenge-токен, подписанный отдельным ключом и непригодный как access token; на один challenge не больше 5 попыток и отдельный rate limit `/auth/login/mfa`; 10 одноразовых кодов восстановления хранятся как SHA-256; отключение 2FA и перевыпуск кодов требуют пароль и второй фактор; включение завершает остальные сессии, сброс администратором — все сессии пользователя. Смена JWT secret делает сохранённые TOTP-секреты нечитаемыми — перед ротацией 2FA нужно сбросить;
+- apt-операции доступны только admin (просмотр — admin/operator) через exact `privileged-apt`: allowlist операций `status`/`refresh`/`upgrade`, валидация имён пакетов по Debian policy и повторная root-side проверка, что каждый выбранный пакет действительно обновляем; apt запускается без shell в transient unit `mini-ubuntu-server-apt` через `systemd-run`, все запуски пишутся в аудит;
 - `sessionStorage` вместо долговременного хранения JWT;
 - `bun audit`, `govulncheck`, CodeQL, Go checks и CI;
 - systemd hardening и отдельный системный пользователь;
