@@ -26,7 +26,7 @@ async function submit() {
     await auth.login(username.value, password.value)
     router.push(auth.mustChangePassword ? '/change-password' : '/')
   } catch {
-    error.value = 'Неверное имя пользователя или пароль'
+    error.value = t.value.invalidCredentials
   } finally {
     loading.value = false
   }
@@ -34,12 +34,13 @@ async function submit() {
 </script>
 
 <template>
-  <div class="grid h-full place-items-center">
-    <Card class="mx-4 w-full max-w-[400px]">
+  <div class="login-shell">
+    <Card class="login-card mx-4 w-full max-w-[400px]">
       <template #title>
         <div class="text-center">
-          <i class="pi pi-server text-4xl text-primary" />
-          <h1 class="mt-3 text-xl font-semibold">Mini Ubuntu Server Panel</h1>
+          <span class="login-mark"><i class="pi pi-server" /></span>
+          <h1 class="mb-1 mt-4 text-xl font-semibold tracking-tight">Mini Ubuntu Server Panel</h1>
+          <p class="muted m-0 text-sm font-normal">{{ t.signInSubtitle }}</p>
         </div>
       </template>
       <template #content>
@@ -67,3 +68,32 @@ async function submit() {
     </Card>
   </div>
 </template>
+
+<style scoped>
+.login-shell {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  background:
+    radial-gradient(700px 360px at 50% 0%, var(--app-glow), transparent 70%) no-repeat,
+    var(--app-background);
+}
+
+.login-card {
+  box-shadow: var(--app-shadow-raised) !important;
+}
+
+.login-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  font-size: 1.3rem;
+  color: var(--p-primary-contrast-color);
+  background: linear-gradient(140deg, var(--p-primary-400), var(--p-primary-700));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 8px 24px color-mix(in srgb, var(--p-primary-500) 35%, transparent);
+}
+</style>

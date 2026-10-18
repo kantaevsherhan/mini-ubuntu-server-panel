@@ -80,6 +80,13 @@ Selectable primary accents reference PrimeVue primitive tokens across the comple
 
 Do not use accent colors for health by themselves: server health, warnings and failures always use PrimeVue semantic severities and visible labels/icons. Exact surface hex values may differ between Aura and Lara by design.
 
+## Typography
+
+- UI font: **Geist** (`@fontsource-variable/geist`), code/terminal/editor font: **JetBrains Mono** (`@fontsource-variable/jetbrains-mono`). Both are bundled through `src/services/fonts.ts`; never load fonts from a CDN.
+- Only latin and cyrillic subsets are fetched on demand through `unicode-range`. Fonts must not be inlined as `data:` URIs (the backend CSP allows `font-src 'self'` only); `vite.config.ts` enforces this.
+- Canvas renderers (xterm.js, ECharts) cannot resolve CSS variables or wait for fonts: pass `SANS_FONT`/`MONO_FONT` explicitly and await `monoFontReady()` before measuring glyphs.
+- Page titles: 1.625rem / 600 / tight tracking. Metric values use `font-variant-numeric: tabular-nums`. Section labels use sentence case, not uppercase.
+
 ## Spacing and shape
 
 - Base spacing unit: 4px.
@@ -87,14 +94,15 @@ Do not use accent colors for health by themselves: server health, warnings and f
 - Standard component gap: 12–16px.
 - Form vertical gap: 24px for floating labels, 16px elsewhere.
 - Card padding comes from PrimeVue. Do not wrap cards in duplicated custom padding unless the layout requires it.
-- Border radius: small, typically 4–8px. Avoid pill-shaped containers except tags and status badges.
+- Border radius: 8px for controls and navigation items, 12px (`--app-radius`) for cards, tables and dialogs. Avoid pill-shaped containers except tags and status badges.
 - Tables use `size="small"` and compact rows.
 
 ## Layout
 
-- Header uses `Menubar` and remains visible.
-- Workspace uses `Splitter`; sidebar size is saved in `localStorage`.
-- Sidebar uses `PanelMenu` and PrimeIcons.
+- The header remains visible and shows breadcrumbs (group › page), the quick navigation trigger, the live connection indicator, the theme toggle and the account menu (`Avatar` + `Menu`).
+- Navigation items are defined once in `useNavigation()` and shared by the sidebar, mobile `Drawer` and the command palette; role filtering happens there.
+- The sidebar is collapsible (state saved in `localStorage`); the active item has an accent bar and accent icon.
+- Quick navigation (`Ctrl+K` / `⌘K`) is a `Dialog` with a filtered `Listbox`; it lists pages and panel actions (theme, sign out).
 - Main workspace scrolls independently from navigation.
 - Below the `lg` breakpoint, replace the persistent sidebar with PrimeVue `Drawer` and open it with an icon-only PrimeVue `Button`.
 - On mobile, stack dashboard cards and form grids vertically, keep touch targets at least 40px high, and allow data tables to scroll horizontally.
@@ -135,7 +143,7 @@ Do not use accent colors for health by themselves: server health, warnings and f
 - Loading: `Skeleton` for page content, component loading props for actions and tables.
 - Success/error: `Toast`; persistent form errors: `Message`.
 - Destructive confirmation: `ConfirmDialog`.
-- Offline state must be visible in the header and must not look like success.
+- Offline state must be visible in the header and must not look like success. `services/connection.ts` marks the server unreachable on transport failures (not on HTTP error statuses) and probes `/api/v1/health` until it answers.
 - Disable duplicate submissions while a request is running.
 - Errors must be actionable and must never reveal backend internals.
 

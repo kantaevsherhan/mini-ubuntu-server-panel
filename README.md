@@ -20,6 +20,7 @@ Web-панель управления Ubuntu Server с backend на Go/Fiber и 
 - отдельные panel users и Ubuntu users с compensating rollback;
 - мониторинг с Telegram-уведомлениями: упавшие/unhealthy/перезапускающиеся Docker-контейнеры, failed и выбранные остановленные systemd-сервисы, CPU/RAM/swap/диски по порогам, вход администратора и изменения firewall; уведомления «восстановлено», отдельное состояние для каждого контейнера/сервиса/диска, настраиваемые интервал, пороги, исключения и получатели для каждого правила;
 - Audit и Notifications pages;
+- быстрый переход по страницам и действиям через `Ctrl+K` / `⌘K` и живой индикатор связи с сервером в шапке;
 - встроенные CLI-команды update/uninstall с backup и rollback;
 - автообновление страниц только пока вкладка видна (пауза в фоне), кэш тяжёлых `/proc`-сканов.
 
@@ -49,6 +50,7 @@ Frontend:
 - Vue 3, Vite, TypeScript, Vue Router, Pinia;
 - PrimeVue 4, PrimeIcons и `@primeuix/themes` Aura/Lara;
 - Tailwind CSS для layout/utilities;
+- шрифты Geist и JetBrains Mono, встроенные в бинарник (без CDN);
 - Moment.js, ECharts, xterm.js и Monaco Editor;
 - Bun для dependencies, scripts и build.
 

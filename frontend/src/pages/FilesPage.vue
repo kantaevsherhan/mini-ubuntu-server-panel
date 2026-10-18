@@ -15,6 +15,7 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import api from '../services/api'
 import { formatDateTime } from '../services/dateTime'
+import { MONO_FONT } from '../services/fonts'
 import { useI18n } from '../services/i18n'
 import { loadMonaco } from '../services/monaco'
 import { usePreferencesStore } from '../stores/preferences'
@@ -162,6 +163,8 @@ async function openEditor(path: string, initialContent?: string) {
     automaticLayout: true,
     minimap: { enabled: false },
     fontSize: 13,
+    fontFamily: MONO_FONT,
+    fontLigatures: true,
     tabSize: 2,
     wordWrap: 'on',
   })

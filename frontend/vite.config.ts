@@ -6,6 +6,8 @@ export default defineConfig({
   build: {
     outDir: resolve(__dirname, '../backend/cmd/mini-ubuntu-server/web'),
     emptyOutDir: false,
+    // The backend CSP allows only font-src 'self', so fonts must never be inlined as data: URIs.
+    assetsInlineLimit: (file) => (/\.woff2?$/.test(file) ? false : undefined),
   },
   server: {
     proxy: {

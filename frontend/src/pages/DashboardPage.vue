@@ -4,6 +4,7 @@ import Message from 'primevue/message'
 import ProgressBar from 'primevue/progressbar'
 import SelectButton from 'primevue/selectbutton'
 import Skeleton from 'primevue/skeleton'
+import Tag from 'primevue/tag'
 import MetricsHistoryChart, { type MetricPoint } from '../components/MetricsHistoryChart.vue'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
 import api from '../services/api'
@@ -61,10 +62,10 @@ function formatUptime(seconds = 0) {
     : `${hours}${suffix[1]} ${minutes}${suffix[2]}`
 }
 
-function barClass(value: number) {
-  if (value >= 90) return 'bar-danger'
-  if (value >= 75) return 'bar-warn'
-  return ''
+function level(value: number) {
+  if (value >= 90) return { bar: 'bar-danger', severity: 'danger', label: t.value.loadCritical }
+  if (value >= 75) return { bar: 'bar-warn', severity: 'warn', label: t.value.loadHigh }
+  return { bar: '', severity: 'success', label: t.value.loadNormal }
 }
 
 const gauges = computed(() => {
@@ -152,13 +153,18 @@ useAutoRefresh(load, 30000)
       <div v-for="gauge in gauges" :key="gauge.label" class="panel-card stat-card">
         <div class="stat-card__label">
           <span class="stat-icon"><i :class="gauge.icon" /></span>{{ gauge.label
-          }}<span v-if="gauge.path" class="font-mono normal-case">{{ gauge.path }}</span>
+          }}<span v-if="gauge.path" class="font-mono text-xs">{{ gauge.path }}</span>
+          <Tag
+            :severity="level(gauge.value).severity"
+            :value="level(gauge.value).label"
+            class="ml-auto !text-[0.7rem]"
+          />
         </div>
-        <div class="stat-card__value">{{ gauge.value }}%</div>
+        <div class="stat-card__value">{{ gauge.value }}<span class="stat-card__unit">%</span></div>
         <ProgressBar
           :value="gauge.value"
           :show-value="false"
-          :class="['mt-3 h-1.5', barClass(gauge.value)]"
+          :class="['mt-4 !h-1.5', level(gauge.value).bar]"
         />
       </div>
     </div>
@@ -170,7 +176,7 @@ useAutoRefresh(load, 30000)
       </div>
       <div v-if="system" class="panel-card stat-card">
         <div class="stat-card__label">Load · {{ system.cpu_count }} CPU</div>
-        <div class="stat-card__value whitespace-nowrap" style="font-size: 1.25rem">
+        <div class="stat-card__value whitespace-nowrap" style="font-size: 1.2rem">
           {{ system.load.map((v) => v.toFixed(2)).join(' ') }}
         </div>
       </div>
@@ -219,9 +225,15 @@ useAutoRefresh(load, 30000)
 
 <style scoped>
 .bar-warn :deep(.p-progressbar-value) {
-  background: #f59e0b;
+  background: var(--app-warn);
 }
 .bar-danger :deep(.p-progressbar-value) {
-  background: #ef4444;
+  background: var(--app-danger);
+}
+.stat-card__unit {
+  margin-left: 2px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
 }
 </style>

@@ -42,9 +42,11 @@ bun audit
 
 `check` запускает Prettier check, ESLint без warnings, TypeScript и production build. Маршруты загружаются лениво для уменьшения начального bundle.
 
-`bun run e2e` запускает Playwright в desktop Chromium 1440×900 и mobile Pixel 7 projects. Smoke мокирует API на network boundary и проверяет Dashboard, responsive Drawer/sidebar, Settings, Audit, Notifications, отсутствие page overflow и PrimeVue Toast для server errors. Layout монтирует ровно один `RouterView` через `matchMedia`, поэтому hidden breakpoint не создаёт дублирующие API-запросы.
+`bun run e2e` запускает Playwright в desktop Chromium 1440×900 и mobile Pixel 7 projects. Smoke мокирует API на network boundary и проверяет Dashboard, responsive Drawer/sidebar, Settings, Audit, Notifications, командную палитру `Ctrl+K`, индикатор «Нет связи», отсутствие page overflow и PrimeVue Toast для server errors. Layout монтирует ровно один `RouterView` через `matchMedia`, поэтому hidden breakpoint не создаёт дублирующие API-запросы.
 
-Dashboard загружает ECharts модульно (`echarts/core`) и показывает CPU/RAM за день, неделю, месяц или всё время. Диапазон выбирается PrimeVue `SelectButton`, а даты оси форматируются Moment.js согласно выбранному языку.
+Шрифты Geist (интерфейс) и JetBrains Mono (терминал, Monaco, код) поставляются через `@fontsource-variable` внутри бинарника, без CDN; Vite не инлайнит их в `data:` из-за CSP `font-src 'self'`.
+
+Dashboard загружает ECharts модульно (`echarts/core`) и показывает CPU/RAM за день, неделю, месяц или всё время. Диапазон выбирается PrimeVue `SelectButton`, а даты оси форматируются Moment.js согласно выбранному языку. Цвета графика читаются из токенов темы и обновляются при смене темы/акцента (canvas не понимает CSS-переменные).
 
 Страница процессов использует PrimeVue `DataTable`, `Column`, `InputText`, `Tag`, `Button` и глобальный `ConfirmDialog`. Таблица виртуализирована, даты запуска форматируются общим Moment.js formatter, а действия управления скрыты для viewer.
 

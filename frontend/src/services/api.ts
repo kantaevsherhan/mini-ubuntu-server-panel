@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { emitAPIError } from './apiErrors'
+import { markReachable, markUnreachable } from './connection'
 
 declare module 'axios' {
   interface AxiosRequestConfig {
@@ -15,8 +16,13 @@ api.interceptors.request.use((c) => {
   return c
 })
 api.interceptors.response.use(
-  (r) => r,
+  (r) => {
+    markReachable()
+    return r
+  },
   (e) => {
+    if (e.response) markReachable()
+    else if (!axios.isCancel(e)) markUnreachable()
     const code = String(e.response?.data?.error || 'network_error')
     const message = e.response?.data?.message
     if (!e.config?.silent) {

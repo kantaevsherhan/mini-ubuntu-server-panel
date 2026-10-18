@@ -103,7 +103,7 @@ test('dashboard and settings adapt without horizontal page overflow', async ({
   await expect(page.getByText('42%')).toBeVisible()
 
   const mobile = testInfo.project.name.startsWith('mobile')
-  const menuButton = page.getByRole('button', { name: 'Open navigation' })
+  const menuButton = page.getByRole('button', { name: 'Открыть навигацию' })
   if (mobile) {
     await expect(menuButton).toBeVisible()
     await menuButton.click()
@@ -127,6 +127,23 @@ test('server errors are shown through PrimeVue Toast', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByText('Ошибка запроса')).toBeVisible()
   await expect(page.getByText('Код ошибки: internal_error')).toBeVisible()
+})
+
+test('command palette navigates with the keyboard', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Состояние сервера' })).toBeVisible()
+  await page.keyboard.press('Control+k')
+  await page.getByPlaceholder('Страница или действие…').fill('настр')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('heading', { name: 'Настройки' })).toBeVisible()
+})
+
+test('header shows offline state when the server is unreachable', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('status', { name: 'Онлайн' })).toBeVisible()
+  await page.route('**/api/v1/metrics/history**', (route) => route.abort('connectionrefused'))
+  await page.getByRole('button', { name: 'Неделя' }).click()
+  await expect(page.getByRole('status', { name: 'Нет связи' })).toBeVisible()
 })
 
 test('audit and notification modules render real responsive pages', async ({ page }) => {

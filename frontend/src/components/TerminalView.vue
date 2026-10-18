@@ -3,6 +3,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import api from '../services/api'
+import { MONO_FONT, monoFontReady } from '../services/fonts'
 import { useI18n } from '../services/i18n'
 import { usePreferencesStore } from '../stores/preferences'
 
@@ -131,11 +132,14 @@ watch(
   },
 )
 
-onMounted(() => {
+onMounted(async () => {
+  // xterm measures glyphs once on open; wait for the bundled font to avoid misaligned cells.
+  await monoFontReady()
+  if (disposed || !host.value) return
   shell = new Terminal({
     cursorBlink: true,
     convertEol: false,
-    fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Ubuntu Mono', ui-monospace, monospace",
+    fontFamily: MONO_FONT,
     fontSize: 14,
     lineHeight: 1.15,
     scrollback: 5000,
