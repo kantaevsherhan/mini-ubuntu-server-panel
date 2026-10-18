@@ -135,6 +135,8 @@ func TestPerformUpdateSuccessAndRollback(t *testing.T) {
 				Version: "v1.2.3", CurrentVersion: "v1.2.2", InstallDir: installDir,
 				DataDir: dataDir, ConfigPath: filepath.Join(root, "config.yml"), Service: defaultService,
 				LockPath: filepath.Join(root, "update.lock"),
+				// Explicit temp paths: the defaults are real /etc files, which a root test run would overwrite.
+				SudoersPath: filepath.Join(root, "sudoers"), UnitPath: filepath.Join(root, "unit.service"),
 			})
 			err = performUpdate(context.Background(), options, dependencies)
 			binary, _ := os.ReadFile(binaryPath)
