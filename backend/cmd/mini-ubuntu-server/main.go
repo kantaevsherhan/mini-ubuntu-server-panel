@@ -43,7 +43,7 @@ import (
 
 var version = "dev"
 
-//go:embed web/* web-placeholder.html
+//go:embed all:web web-placeholder.html
 var web embed.FS
 
 func main() {

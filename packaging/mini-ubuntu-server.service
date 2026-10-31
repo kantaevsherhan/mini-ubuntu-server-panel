@@ -18,8 +18,9 @@ PrivateTmp=true
 ProtectHome=read-only
 ProtectSystem=strict
 # The unprivileged service cannot write /etc or /home directly. These paths are
-# writable only so the exact sudoers root-helper can manage users and secrets.
-ReadWritePaths=/etc /home /var/lib/mini-ubuntu-server /var/log/mini-ubuntu-server
+# writable only so the exact sudoers root-helper can manage users and secrets;
+# /run holds the ufw lock file the firewall helper must open for writing.
+ReadWritePaths=/etc /home /run /var/lib/mini-ubuntu-server /var/log/mini-ubuntu-server
 LimitNOFILE=65535
 
 [Install]
