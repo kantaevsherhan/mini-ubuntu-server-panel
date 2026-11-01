@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 import Column from 'primevue/column'
@@ -12,7 +12,6 @@ import TabList from 'primevue/tablist'
 import TabPanel from 'primevue/tabpanel'
 import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
-import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import TelegramSettings from '../components/TelegramSettings.vue'
 import NotificationSettings from '../components/NotificationSettings.vue'
@@ -49,14 +48,17 @@ interface UpdateStatus {
   url: string
 }
 
+interface OverviewItem {
+  label: string
+  value: string
+  path?: boolean
+}
+
 const preferences = usePreferencesStore()
 const auth = useAuthStore()
-const router = useRouter()
 const toast = useToast()
 const { t, locale } = useI18n()
-const activeSection = ref(
-  typeof useRoute().query.tab === 'string' ? String(useRoute().query.tab) : 'general',
-)
+const requestedTab = useRoute().query.tab
 const overview = ref<Overview>()
 const currentVersion = ref('dev')
 const updateStatus = ref<UpdateStatus>()
@@ -80,44 +82,51 @@ const colors = [
   { label: 'Violet', value: 'violet' },
 ]
 
+// Only tabs with their own settings: pages such as Docker, Systemd or Firewall
+// are reached from the side menu, not through a tab holding a single link.
 const sections = computed(() => {
   const items = [
     { value: 'general', label: t.value.general, icon: 'pi pi-home', roles: [] },
     { value: 'interface', label: t.value.appearance, icon: 'pi pi-palette', roles: [] },
-    { value: 'metrics', label: t.value.metrics, icon: 'pi pi-chart-line', roles: [] },
-    {
-      value: 'storage',
-      label: t.value.dataStorage,
-      icon: 'pi pi-database',
-      roles: ['admin', 'operator'],
-    },
-    {
-      value: 'users',
-      label: t.value.usersAndRoles,
-      icon: 'pi pi-users',
-      roles: ['admin', 'operator'],
-    },
     {
       value: 'directories',
       label: t.value.allowedDirectories,
       icon: 'pi pi-folder-open',
       roles: ['admin', 'operator'],
     },
-    { value: 'docker', label: 'Docker', icon: 'pi pi-box', roles: ['admin', 'operator'] },
-    { value: 'systemd', label: 'Systemd', icon: 'pi pi-cog', roles: ['admin', 'operator'] },
-    {
-      value: 'firewall',
-      label: t.value.firewall,
-      icon: 'pi pi-shield',
-      roles: ['admin', 'operator'],
-    },
     { value: 'telegram', label: 'Telegram', icon: 'pi pi-send', roles: ['admin'] },
     { value: 'notifications', label: t.value.notifications, icon: 'pi pi-bell', roles: ['admin'] },
-    { value: 'security', label: t.value.security, icon: 'pi pi-lock', roles: [] },
-    { value: 'backups', label: t.value.backups, icon: 'pi pi-save', roles: ['admin'] },
     { value: 'updates', label: t.value.updates, icon: 'pi pi-sync', roles: ['admin'] },
   ]
   return items.filter((item) => !item.roles.length || item.roles.includes(auth.role))
+})
+
+const activeSection = ref(
+  typeof requestedTab === 'string' && sections.value.some((item) => item.value === requestedTab)
+    ? requestedTab
+    : 'general',
+)
+
+const overviewItems = computed(() => {
+  const items: OverviewItem[] = [
+    { label: t.value.server, value: overview.value?.hostname || 'Mini Ubuntu Server' },
+    { label: t.value.currentVersion, value: currentVersion.value },
+    { label: t.value.account, value: `${auth.username} · ${auth.role}` },
+  ]
+  const data = overview.value
+  if (!data) return items
+  items.push(
+    { label: t.value.activeSessions, value: String(data.active_sessions) },
+    { label: 'SQLite', value: formatBytes(data.database_size_bytes) },
+    { label: t.value.auditEvents, value: data.audit_events.toLocaleString(locale.value) },
+    { label: t.value.storedMetricSamples, value: data.metric_samples.toLocaleString(locale.value) },
+    { label: t.value.dataDirectory, value: data.data_dir, path: true },
+    { label: t.value.logDirectory, value: data.log_dir, path: true },
+  )
+  if (auth.role === 'admin') {
+    items.push({ label: t.value.backups, value: `${data.data_dir}/backups`, path: true })
+  }
+  return items
 })
 
 function formatBytes(value = 0) {
@@ -182,25 +191,19 @@ onMounted(() => {
 
       <TabPanels>
         <TabPanel value="general">
-          <Card class="max-w-4xl">
+          <Card class="max-w-5xl">
             <template #title>{{ t.general }}</template>
             <template #content>
-              <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <div class="panel-card p-4">
-                  <span class="muted text-sm">{{ t.server }}</span>
-                  <strong class="mt-1 block">{{
-                    overview?.hostname || 'Mini Ubuntu Server'
-                  }}</strong>
-                </div>
-                <div class="panel-card p-4">
-                  <span class="muted text-sm">{{ t.currentVersion }}</span>
-                  <strong class="mt-1 block">{{ currentVersion }}</strong>
-                </div>
-                <div class="panel-card p-4">
-                  <span class="muted text-sm">{{ t.account }}</span>
-                  <strong class="mt-1 block">{{ auth.username }} · {{ auth.role }}</strong>
+              <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div v-for="item in overviewItems" :key="item.label" class="panel-card px-4 py-3">
+                  <span class="muted text-sm">{{ item.label }}</span>
+                  <code v-if="item.path" class="mt-1 block break-all">{{ item.value }}</code>
+                  <strong v-else class="mt-1 block">{{ item.value }}</strong>
                 </div>
               </div>
+              <Message severity="info" :closable="false" class="mt-4">{{
+                t.securitySessionHint
+              }}</Message>
             </template>
           </Card>
         </TabPanel>
@@ -251,76 +254,6 @@ onMounted(() => {
           </Card>
         </TabPanel>
 
-        <TabPanel value="metrics">
-          <Card class="max-w-4xl">
-            <template #title>{{ t.metrics }}</template>
-            <template #content>
-              <div class="mb-4 flex flex-wrap items-center gap-3">
-                <Tag severity="success" :value="t.enabled" /><span>{{
-                  t.metricsCollectorHint
-                }}</span>
-              </div>
-              <p v-if="overview" class="muted">
-                {{ t.storedMetricSamples }}: {{ overview.metric_samples.toLocaleString(locale) }}
-              </p>
-              <Button
-                :label="t.openDashboard"
-                icon="pi pi-chart-line"
-                outlined
-                @click="router.push('/')"
-              />
-            </template>
-          </Card>
-        </TabPanel>
-
-        <TabPanel v-if="auth.role === 'admin' || auth.role === 'operator'" value="storage">
-          <Card class="max-w-4xl">
-            <template #title>{{ t.dataStorage }}</template>
-            <template #content>
-              <div class="grid gap-4 md:grid-cols-2">
-                <div class="panel-card p-4">
-                  <span class="muted text-sm">{{ t.dataDirectory }}</span
-                  ><code class="mt-2 block break-all">{{ overview?.data_dir || '—' }}</code>
-                </div>
-                <div class="panel-card p-4">
-                  <span class="muted text-sm">{{ t.logDirectory }}</span
-                  ><code class="mt-2 block break-all">{{ overview?.log_dir || '—' }}</code>
-                </div>
-                <div class="panel-card p-4">
-                  <span class="muted text-sm">SQLite</span
-                  ><strong class="mt-2 block">{{
-                    formatBytes(overview?.database_size_bytes)
-                  }}</strong>
-                </div>
-                <div class="panel-card p-4">
-                  <span class="muted text-sm">{{ t.auditEvents }}</span
-                  ><strong class="mt-2 block">{{
-                    overview?.audit_events.toLocaleString(locale) || '0'
-                  }}</strong>
-                </div>
-              </div>
-            </template>
-          </Card>
-        </TabPanel>
-
-        <TabPanel v-if="auth.role === 'admin' || auth.role === 'operator'" value="users">
-          <Card class="max-w-4xl"
-            ><template #title>{{ t.usersAndRoles }}</template
-            ><template #content
-              ><div class="mb-4 flex flex-wrap gap-2">
-                <Tag value="admin" severity="danger" /><Tag value="operator" severity="warn" /><Tag
-                  value="viewer"
-                  severity="secondary"
-                />
-              </div>
-              <p class="muted">{{ t.rolesHint }}</p>
-              <Button
-                :label="t.openUsers"
-                icon="pi pi-users"
-                @click="router.push('/users')" /></template
-          ></Card>
-        </TabPanel>
-
         <TabPanel v-if="auth.role === 'admin' || auth.role === 'operator'" value="directories">
           <Card
             ><template #title>{{ t.allowedDirectories }}</template
@@ -342,94 +275,23 @@ onMounted(() => {
           >
         </TabPanel>
 
-        <TabPanel v-if="auth.role === 'admin' || auth.role === 'operator'" value="docker">
-          <Card class="max-w-4xl"
-            ><template #title>Docker</template
-            ><template #content
-              ><Message severity="warn" :closable="false" class="mb-4">{{
-                t.dockerPrivilegeHint
-              }}</Message
-              ><Button
-                :label="t.openDocker"
-                icon="pi pi-box"
-                @click="router.push('/docker')" /></template
-          ></Card>
-        </TabPanel>
-
-        <TabPanel v-if="auth.role === 'admin' || auth.role === 'operator'" value="systemd">
-          <Card class="max-w-4xl"
-            ><template #title>Systemd</template
-            ><template #content
-              ><p class="muted">{{ t.systemdHint }}</p>
-              <Button
-                :label="t.openServices"
-                icon="pi pi-cog"
-                @click="router.push('/services')" /></template
-          ></Card>
-        </TabPanel>
-
-        <TabPanel v-if="auth.role === 'admin' || auth.role === 'operator'" value="firewall">
-          <Card class="max-w-4xl"
-            ><template #title>{{ t.firewall }}</template
-            ><template #content
-              ><p class="muted">{{ t.settingsFirewallHint }}</p>
-              <Button
-                :label="t.openFirewall"
-                icon="pi pi-shield"
-                @click="router.push('/firewall')" /></template
-          ></Card>
-        </TabPanel>
-
         <TabPanel v-if="auth.role === 'admin'" value="telegram"><TelegramSettings /></TabPanel>
         <TabPanel v-if="auth.role === 'admin'" value="notifications"
           ><NotificationSettings
         /></TabPanel>
 
-        <TabPanel value="security">
-          <Card class="max-w-4xl"
-            ><template #title>{{ t.security }}</template
-            ><template #content
-              ><Message severity="info" :closable="false" class="mb-4">{{
-                t.securitySessionHint
-              }}</Message>
-              <div class="grid gap-4 sm:grid-cols-2">
-                <div class="panel-card p-4">
-                  <span class="muted text-sm">{{ t.activeSessions }}</span
-                  ><strong class="mt-2 block">{{ overview?.active_sessions ?? 1 }}</strong>
-                </div>
-                <div class="panel-card p-4">
-                  <span class="muted text-sm">RBAC</span
-                  ><strong class="mt-2 block">{{ auth.role }}</strong>
-                </div>
-              </div></template
-            ></Card
-          >
-        </TabPanel>
-
-        <TabPanel v-if="auth.role === 'admin'" value="backups">
-          <Card class="max-w-4xl"
-            ><template #title>{{ t.backups }}</template
-            ><template #content
-              ><Message severity="info" :closable="false" class="mb-4">{{ t.backupHint }}</Message
-              ><code class="panel-card block overflow-auto p-4"
-                >/var/lib/mini-ubuntu-server/backups</code
-              ></template
-            ></Card
-          >
-        </TabPanel>
-
         <TabPanel v-if="auth.role === 'admin'" value="updates">
           <Card class="max-w-4xl"
             ><template #title>{{ t.updates }}</template
             ><template #content
-              ><div class="grid gap-4 sm:grid-cols-2">
-                <div class="panel-card p-4">
+              ><div class="grid gap-3 sm:grid-cols-2">
+                <div class="panel-card px-4 py-3">
                   <span class="muted text-sm">{{ t.currentVersion }}</span
-                  ><strong class="mt-2 block">{{ updateStatus?.current || currentVersion }}</strong>
+                  ><strong class="mt-1 block">{{ updateStatus?.current || currentVersion }}</strong>
                 </div>
-                <div class="panel-card p-4">
+                <div class="panel-card px-4 py-3">
                   <span class="muted text-sm">{{ t.latestVersion }}</span
-                  ><strong class="mt-2 block">{{ updateStatus?.latest || '—' }}</strong>
+                  ><strong class="mt-1 block">{{ updateStatus?.latest || '—' }}</strong>
                 </div>
               </div>
               <Message
