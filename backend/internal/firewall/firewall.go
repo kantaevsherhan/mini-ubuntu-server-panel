@@ -126,9 +126,7 @@ func RunPrivileged(input io.Reader, output io.Writer) error {
 		}
 		return json.NewEncoder(output).Encode(parseStatus(string(data)))
 	case "add":
-		rule := request.Rule
-		args := []string{"--force", rule.Action, "from", normalizeSource(rule.Source), "to", "any", "port", strconv.Itoa(rule.Port), "proto", rule.Protocol}
-		if data, err := exec.Command("/usr/sbin/ufw", args...).CombinedOutput(); err != nil {
+		if data, err := exec.Command("/usr/sbin/ufw", addArgs(*request.Rule)...).CombinedOutput(); err != nil {
 			return fmt.Errorf("ufw add failed: %w: %s", err, strings.TrimSpace(string(data)))
 		}
 	case "delete":
@@ -137,6 +135,12 @@ func RunPrivileged(input io.Reader, output io.Writer) error {
 		}
 	}
 	return nil
+}
+
+// addArgs builds the ufw arguments for a new rule. ufw accepts --force only for
+// delete, enable and reset; "ufw --force allow ..." fails with "Invalid syntax".
+func addArgs(rule AddRequest) []string {
+	return []string{rule.Action, "from", normalizeSource(rule.Source), "to", "any", "port", strconv.Itoa(rule.Port), "proto", rule.Protocol}
 }
 
 func validateRequest(request privilegedRequest) error {

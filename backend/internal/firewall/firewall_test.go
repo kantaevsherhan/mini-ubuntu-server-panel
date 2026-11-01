@@ -1,6 +1,9 @@
 package firewall
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestValidateRuleAllowlistAndSSHProtection(t *testing.T) {
 	if err := ValidateRule(AddRequest{Action: "allow", Port: 443, Protocol: "tcp", Source: "10.0.0.0/8"}); err != nil {
@@ -24,5 +27,13 @@ func TestParseStatus(t *testing.T) {
 	status := parseStatus("Status: active\n\n[ 1] 22/tcp                     ALLOW IN    Anywhere\n[ 2] 443/tcp                    DENY IN     10.0.0.0/8\n")
 	if !status.Active || len(status.Rules) != 2 || status.Rules[0].Number != 1 || status.Rules[1].Action != "deny" || status.Rules[1].From != "10.0.0.0/8" {
 		t.Fatalf("unexpected status: %#v", status)
+	}
+}
+
+func TestAddArgs(t *testing.T) {
+	got := addArgs(AddRequest{Action: "allow", Port: 8080, Protocol: "tcp", Source: ""})
+	want := []string{"allow", "from", "any", "to", "any", "port", "8080", "proto", "tcp"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("unexpected ufw args: %#v", got)
 	}
 }
