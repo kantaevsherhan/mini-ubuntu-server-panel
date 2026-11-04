@@ -252,9 +252,10 @@ func (m *Monitor) checkServices(ctx context.Context, settings Settings) {
 		if !watched {
 			continue
 		}
-		if unit.ActiveState == "inactive" {
+		switch unit.ActiveState {
+		case "inactive":
 			m.raise(ctx, "systemd.service.stopped", "error", unit.Name, "Сервис остановлен: "+unit.Name, unit.Description)
-		} else if unit.ActiveState == "active" {
+		case "active":
 			m.resolve(ctx, "systemd.service.stopped", unit.Name, "Сервис снова работает: "+unit.Name, unit.Description)
 		}
 	}

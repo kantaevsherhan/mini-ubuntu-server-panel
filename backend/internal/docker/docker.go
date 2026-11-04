@@ -98,6 +98,7 @@ type RunRequest struct {
 	Volumes       []VolumeMapping `json:"volumes"`
 	RestartPolicy string          `json:"restart_policy"`
 	Start         bool            `json:"start"`
+	Limits        ResourceLimits  `json:"limits"`
 }
 
 type PullJob struct {
@@ -256,7 +257,7 @@ func (m Manager) Logs(ctx context.Context, id string, tail int) (string, error) 
 	if err != nil {
 		return "", mapError(err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	limited := io.LimitReader(reader, maxLogBytes)
 	var output bytes.Buffer
 	if inspect.Container.Config != nil && inspect.Container.Config.Tty {
@@ -271,6 +272,9 @@ func (m Manager) Logs(ctx context.Context, id string, tail int) (string, error) 
 }
 
 func ValidateRunRequest(request RunRequest) error {
+	if err := ValidateLimits(request.Limits); err != nil {
+		return err
+	}
 	if !validImageRef(request.Image) {
 		return fmt.Errorf("%w: image", ErrInvalid)
 	}
@@ -384,6 +388,7 @@ func (m Manager) Run(ctx context.Context, request RunRequest) (string, error) {
 		Name:   request.Name,
 		Config: &containertypes.Config{Image: request.Image, Env: request.Env, ExposedPorts: exposed},
 		HostConfig: &containertypes.HostConfig{
+			Resources:     request.Limits.resources(false),
 			PortBindings:  bindings,
 			Mounts:        mounts,
 			RestartPolicy: containertypes.RestartPolicy{Name: containertypes.RestartPolicyMode(policy)},

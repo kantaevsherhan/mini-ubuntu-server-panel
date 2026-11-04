@@ -110,7 +110,7 @@ func (c *Collector) readSmall(parts ...string) string {
 	if err != nil {
 		return ""
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	data, _ := io.ReadAll(io.LimitReader(file, 64*1024))
 	return string(data)
 }
@@ -231,7 +231,7 @@ func (c *Collector) ListeningPorts() []ListeningPort {
 				ports = append(ports, port.ListeningPort)
 			}
 		}
-		file.Close()
+		_ = file.Close()
 	}
 	sort.Slice(ports, func(i, j int) bool {
 		if ports[i].Port != ports[j].Port {

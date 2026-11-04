@@ -56,6 +56,7 @@ const groups = computed(() => {
       title: t.value.navWorkloads,
       items: [
         { label: t.value.docker, icon: 'pi pi-box', path: '/docker', roles: staff },
+        { label: t.value.databases, icon: 'pi pi-database', path: '/databases', roles: ['admin'] },
         { label: t.value.services, icon: 'pi pi-cog', path: '/services', roles: staff },
         { label: t.value.processes, icon: 'pi pi-list', path: '/processes', roles: [] },
         { label: t.value.logs, icon: 'pi pi-align-left', path: '/logs', roles: staff },

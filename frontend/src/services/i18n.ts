@@ -3,6 +3,44 @@ import { storeToRefs } from 'pinia'
 import { usePreferencesStore, type Locale } from '../stores/preferences'
 const messages = {
   ru: {
+    databases: 'Базы данных',
+    databaseConnected: 'Подключено',
+    databaseDisconnected: 'Не подключено',
+    databaseHint: 'Клиент PostgreSQL, MySQL / MariaDB и MongoDB. Просмотр по 100 записей.',
+    databaseSecurityHint:
+      'Режим просмотра. Используйте учётную запись БД с правами только на чтение. Пароль живёт в памяти страницы до отключения. Адрес указывается относительно сервера панели; для Docker используйте опубликованный порт.',
+    databaseConnect: 'Подключиться к БД',
+    databaseEngine: 'СУБД',
+    databaseHost: 'Хост',
+    databaseName: 'Имя базы данных',
+    databaseAuthSource: 'База аутентификации',
+    databaseTLS: 'TLS с проверкой сертификата',
+    databaseTable: 'Таблица / коллекция',
+    databaseChooseTable: 'Выберите таблицу или коллекцию',
+    databaseNoTables:
+      'Нет доступных таблиц или коллекций с поддерживаемыми именами (латиница, цифры, подчёркивание).',
+    databaseNoRows: 'Записей нет',
+    databaseFailed:
+      'Не удалось загрузить данные. Проверьте адрес, пароль, TLS и права пользователя БД, затем повторите.',
+    databaseRows: 'Записи',
+    databasePrevious: 'Назад',
+    databaseNext: 'Далее',
+    resourceLimits: 'Лимиты ресурсов',
+    resourceHint:
+      'CPU: 1 = одно ядро; 0 = без лимита. RAM в MiB: при создании 0 = без лимита, при изменении 0 сохраняет текущий лимит. Изменение применяется сразу. Снижение RAM может привести к остановке процессов контейнера.',
+    resourceCPU: 'Лимит CPU (ядра)',
+    resourceMemory: 'Лимит RAM (MiB)',
+    resourceSaved: 'Лимиты обновлены',
+    statsHint:
+      'Обновление каждые 30 секунд. CPU: 100% = одно ядро. RAM без файлового кэша; сеть и диск — накопленные байты.',
+    statsFailed: 'Статистика недоступна или устарела. Повторите обновление.',
+    statsMemory: 'RAM / доступно',
+    statsNetwork: 'Сеть ↓ / ↑',
+    statsDisk: 'Диск чтение / запись',
+    statsPIDs: 'Процессы',
+    statsCPU: 'CPU',
+    statsNoLimit: 'Без лимита',
+
     dashboard: 'Обзор',
     docker: 'Docker',
     processes: 'Процессы',
@@ -407,6 +445,44 @@ const messages = {
     telegramSetup: 'Настроить Telegram',
   },
   en: {
+    databases: 'Databases',
+    databaseConnected: 'Connected',
+    databaseDisconnected: 'Disconnected',
+    databaseHint: 'PostgreSQL, MySQL / MariaDB and MongoDB client. Browse 100 records per page.',
+    databaseSecurityHint:
+      'Browse mode. Use a database account with read-only permissions. The password stays in page memory until disconnect. Addresses are relative to the panel server; use a published port for Docker.',
+    databaseConnect: 'Connect to database',
+    databaseEngine: 'Database engine',
+    databaseHost: 'Host',
+    databaseName: 'Database name',
+    databaseAuthSource: 'Authentication database',
+    databaseTLS: 'TLS with certificate verification',
+    databaseTable: 'Table / collection',
+    databaseChooseTable: 'Choose a table or collection',
+    databaseNoTables:
+      'No accessible tables or collections with supported names (letters, digits, underscores).',
+    databaseNoRows: 'No records',
+    databaseFailed:
+      'Could not load data. Check the address, password, TLS and database permissions, then retry.',
+    databaseRows: 'Records',
+    databasePrevious: 'Previous',
+    databaseNext: 'Next',
+    resourceLimits: 'Resource limits',
+    resourceHint:
+      'CPU: 1 = one core; 0 = unlimited. RAM in MiB: at creation 0 = unlimited; when updating 0 keeps the current limit. Changes apply immediately. Lowering RAM may terminate container processes.',
+    resourceCPU: 'CPU limit (cores)',
+    resourceMemory: 'RAM limit (MiB)',
+    resourceSaved: 'Resource limits updated',
+    statsHint:
+      'Refreshes every 30 seconds. CPU: 100% = one core. RAM excludes file cache; network and disk show cumulative bytes.',
+    statsFailed: 'Statistics unavailable or stale. Refresh to retry.',
+    statsMemory: 'RAM / available',
+    statsNetwork: 'Network ↓ / ↑',
+    statsDisk: 'Disk read / write',
+    statsPIDs: 'Processes',
+    statsCPU: 'CPU',
+    statsNoLimit: 'Unlimited',
+
     dashboard: 'Dashboard',
     docker: 'Docker',
     processes: 'Processes',

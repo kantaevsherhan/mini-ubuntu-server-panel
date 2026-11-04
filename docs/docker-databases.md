@@ -1,0 +1,15 @@
+# Docker resources and database browser
+
+Administrators configure container CPU/RAM limits; operators can inspect statistics. Database browsing is restricted to administrators. The page keeps credentials only in memory and clears them on disconnect/navigation. The backend opens a request-scoped connection and never stores credentials or returned records. Audit entries contain engine and outcome only.
+
+Docker: `/docker` lists CPU (100% = one core), RAM excluding inactive file cache, effective RAM ceiling, cumulative network and disk bytes, and PIDs. Polling runs every 30 seconds while the page and container tab are visible, can be paused, and does not overlap. Failed samples show unavailable rather than zero usage. Container creation and the row menu expose CPU cores and RAM in MiB; zero means unlimited CPU; for RAM zero means unlimited at creation and leaves the current limit unchanged during update (Docker cannot remove a running memory limit). RAM reduction can terminate container processes and is confirmed before applying. Docker daemon errors leave the form available for retry. Docker-managed limits can be overwritten by a later Compose redeployment.
+
+Database browser: `/databases` connects to PostgreSQL, MySQL/MariaDB, or MongoDB using explicit host, port, database, credentials and optional certificate-verified TLS. The host is resolved by the panel server; use published ports for Docker databases. Select a table/collection, inspect up to 100 records and page forward/back. SQL tables use primary-key order when available; tables without primary keys may shift between pages. MongoDB uses `_id` order. Names currently support ASCII letters, digits and underscores, beginning with a letter or underscore. No arbitrary query execution, editing, credential persistence or schema changes are exposed. Use a read-only database account; SQL views may invoke database-side functions according to that account's permissions.
+
+API:
+
+- `GET /api/v1/docker/stats`: admin/operator; ID → sample, limits and per-container failure flag. Four workers, 12-second total deadline.
+- `PUT /api/v1/docker/containers/:id/limits`: admin; `{cpus, memory_mb}`. Validated, audited, immediate Docker update. Existing NanoCPU-based limits can be adjusted but resetting those to unlimited requires Docker CLI/Compose.
+- `POST /api/v1/databases/browse`: admin; `{engine, host, port, database, username, password, tls, auth_source, table, offset}`. Omit table to list metadata. Returns `{tables, columns, rows, has_more}`. Four concurrent requests globally, 12-second deadline, 100-record pages, maximum offset 100000, 4 MiB response limit, no-store response. Stable errors: `database_request_invalid`, `database_busy`, `database_connection_failed`, `database_result_too_large`.
+
+No persistent entities or migrations are added. Clients render backend snapshots; no realtime events are required. UI uses the existing PrimeVue components, themes, Moment service, Russian and English dictionaries. The workflow is connect → select → browse → disconnect; errors preserve non-secret form fields and provide retry. No open product decisions remain.

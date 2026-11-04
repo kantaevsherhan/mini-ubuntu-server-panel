@@ -10,6 +10,7 @@ import Dialog from 'primevue/dialog'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Menu from 'primevue/menu'
+import Message from 'primevue/message'
 import Select from 'primevue/select'
 import Tab from 'primevue/tab'
 import TabList from 'primevue/tablist'
@@ -78,6 +79,64 @@ const { t, locale } = useI18n()
 const isAdmin = computed(() => auth.role === 'admin')
 const tab = ref('containers')
 
+interface ResourceLimits {
+  cpus: number
+  memory_mb: number
+}
+interface ContainerStats {
+  cpu_percent: number
+  memory_usage: number
+  memory_limit: number
+  memory_percent: number
+  network_rx: number
+  network_tx: number
+  block_read: number
+  block_write: number
+  pids: number
+  limits: ResourceLimits
+  error: boolean
+  sampled_at: string
+}
+const stats = ref<Record<string, ContainerStats>>({})
+const statsFailed = ref(false)
+const limitsTarget = ref<DockerContainer>()
+const limitsVisible = ref(false)
+const limitsSaving = ref(false)
+const limitsForm = reactive<ResourceLimits>({ cpus: 0, memory_mb: 0 })
+async function loadStats() {
+  try {
+    stats.value = (await api.get<Record<string, ContainerStats>>('/docker/stats')).data
+    statsFailed.value = Object.values(stats.value).some((s) => s.error)
+  } catch {
+    statsFailed.value = true
+  }
+}
+function openLimits(container: DockerContainer) {
+  limitsTarget.value = container
+  Object.assign(limitsForm, stats.value[container.id]?.limits || { cpus: 0, memory_mb: 0 })
+  limitsVisible.value = true
+}
+function confirmLimits() {
+  confirm.require({
+    header: t.value.resourceLimits,
+    message: `${limitsTarget.value?.name}: ${t.value.resourceHint}`,
+    rejectLabel: t.value.cancel,
+    acceptLabel: t.value.save,
+    accept: saveLimits,
+  })
+}
+async function saveLimits() {
+  if (!limitsTarget.value) return
+  limitsSaving.value = true
+  try {
+    await api.put(`/docker/containers/${limitsTarget.value.id}/limits`, limitsForm)
+    limitsVisible.value = false
+    toast.add({ severity: 'success', summary: t.value.resourceSaved, life: 3000 })
+    await loadStats()
+  } finally {
+    limitsSaving.value = false
+  }
+}
 const containers = ref<DockerContainer[]>([])
 const images = ref<DockerImage[]>([])
 const volumes = ref<DockerVolume[]>([])
@@ -140,6 +199,7 @@ async function load() {
   try {
     await Promise.allSettled([
       loadContainers(),
+      loadStats(),
       loadImages(),
       loadVolumes(),
       loadNetworks(),
@@ -213,6 +273,15 @@ const menuItems = computed(() => {
       icon: 'pi pi-align-left',
       command: () => openLogs(container),
     },
+    ...(isAdmin.value
+      ? [
+          {
+            label: t.value.resourceLimits,
+            icon: 'pi pi-sliders-h',
+            command: () => openLimits(container),
+          },
+        ]
+      : []),
     ...items
       .filter((item) => item.visible)
       .map((item) => ({
@@ -282,6 +351,8 @@ const runForm = reactive({
   restart_policy: 'unless-stopped',
   env: '',
   start: true,
+  cpus: 0 as number | null,
+  memory_mb: 0 as number | null,
   ports: [] as PortRow[],
   volumes: [] as VolumeRow[],
 })
@@ -293,6 +364,8 @@ function openRun(image = '') {
     restart_policy: 'unless-stopped',
     env: '',
     start: true,
+    cpus: 0 as number | null,
+    memory_mb: 0 as number | null,
     ports: [{ host_port: null, container_port: null, protocol: 'tcp', host_ip: '' }],
     volumes: [],
   })
@@ -309,6 +382,7 @@ async function runContainer() {
         name: runForm.name.trim(),
         restart_policy: runForm.restart_policy,
         start: runForm.start,
+        limits: { cpus: runForm.cpus || 0, memory_mb: runForm.memory_mb || 0 },
         env: runForm.env
           .split('\n')
           .map((line) => line.trim())
@@ -473,8 +547,8 @@ function prune(kind: PruneKind, label: string) {
 onMounted(load)
 // Live container state is polled only while the containers tab is visible.
 const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(async (background) => {
-  if (background && tab.value === 'containers') await loadContainers(true)
-}, 5000)
+  if (background && tab.value === 'containers') await Promise.all([loadContainers(), loadStats()])
+}, 30000)
 onBeforeUnmount(() => window.clearInterval(pullTimer))
 </script>
 
@@ -525,6 +599,10 @@ onBeforeUnmount(() => window.clearInterval(pullTimer))
       </TabList>
       <TabPanels>
         <TabPanel value="containers" class="space-y-3">
+          <p class="muted text-sm">{{ t.statsHint }}</p>
+          <Message v-if="statsFailed" severity="warn" :closable="false">{{
+            t.statsFailed
+          }}</Message>
           <InputText v-model="query" :placeholder="t.searchContainers" class="w-full sm:max-w-md" />
           <DataTable
             :value="filtered"
@@ -534,6 +612,7 @@ onBeforeUnmount(() => window.clearInterval(pullTimer))
             size="small"
             striped-rows
             data-key="id"
+            :virtual-scroller-options="{ itemSize: 52 }"
             class="min-h-80"
           >
             <Column field="name" :header="t.containerName" sortable />
@@ -547,6 +626,79 @@ onBeforeUnmount(() => window.clearInterval(pullTimer))
                 />
               </template>
             </Column>
+            <Column :header="t.statsCPU"
+              ><template #body="{ data }"
+                ><span
+                  v-if="
+                    data.state === 'running' &&
+                    stats[data.id] &&
+                    !statsFailed &&
+                    !stats[data.id]!.error
+                  "
+                  class="whitespace-nowrap tabular-nums"
+                  >{{ stats[data.id]!.cpu_percent.toFixed(1) }}%</span
+                ><span v-else>—</span></template
+              ></Column
+            >
+            <Column :header="t.statsMemory"
+              ><template #body="{ data }"
+                ><span
+                  v-if="
+                    data.state === 'running' &&
+                    stats[data.id] &&
+                    !statsFailed &&
+                    !stats[data.id]!.error
+                  "
+                  class="whitespace-nowrap tabular-nums"
+                  >{{ formatBytes(stats[data.id]!.memory_usage) }} /
+                  {{ formatBytes(stats[data.id]!.memory_limit) }}</span
+                ><span v-else>—</span></template
+              ></Column
+            >
+            <Column :header="t.statsNetwork"
+              ><template #body="{ data }"
+                ><span
+                  v-if="
+                    data.state === 'running' &&
+                    stats[data.id] &&
+                    !statsFailed &&
+                    !stats[data.id]!.error
+                  "
+                  class="whitespace-nowrap tabular-nums"
+                  >{{ formatBytes(stats[data.id]!.network_rx) }} /
+                  {{ formatBytes(stats[data.id]!.network_tx) }}</span
+                ><span v-else>—</span></template
+              ></Column
+            >
+            <Column :header="t.statsDisk"
+              ><template #body="{ data }"
+                ><span
+                  v-if="
+                    data.state === 'running' &&
+                    stats[data.id] &&
+                    !statsFailed &&
+                    !stats[data.id]!.error
+                  "
+                  class="whitespace-nowrap tabular-nums"
+                  >{{ formatBytes(stats[data.id]!.block_read) }} /
+                  {{ formatBytes(stats[data.id]!.block_write) }}</span
+                ><span v-else>—</span></template
+              ></Column
+            >
+            <Column :header="t.statsPIDs"
+              ><template #body="{ data }"
+                ><span
+                  v-if="
+                    data.state === 'running' &&
+                    stats[data.id] &&
+                    !statsFailed &&
+                    !stats[data.id]!.error
+                  "
+                  class="whitespace-nowrap tabular-nums"
+                  >{{ stats[data.id]!.pids }}</span
+                ><span v-else>—</span></template
+              ></Column
+            >
             <Column field="health" :header="t.health" sortable class="w-28">
               <template #body="{ data }">
                 <Tag
@@ -623,6 +775,7 @@ onBeforeUnmount(() => window.clearInterval(pullTimer))
             size="small"
             striped-rows
             data-key="id"
+            :virtual-scroller-options="{ itemSize: 52 }"
           >
             <Column :header="t.tags">
               <template #body="{ data }">
@@ -765,6 +918,45 @@ onBeforeUnmount(() => window.clearInterval(pullTimer))
     </Tabs>
 
     <Dialog
+      v-model:visible="limitsVisible"
+      modal
+      :header="`${t.resourceLimits}: ${limitsTarget?.name || ''}`"
+      class="w-[min(36rem,96vw)]"
+    >
+      <form class="grid gap-4 sm:grid-cols-2" @submit.prevent="confirmLimits">
+        <p class="muted text-sm sm:col-span-2">{{ t.resourceHint }}</p>
+        <div class="flex flex-col gap-2">
+          <label for="limits-cpu">{{ t.resourceCPU }}</label
+          ><InputNumber
+            v-model="limitsForm.cpus"
+            input-id="limits-cpu"
+            :min="0"
+            :max="1024"
+            :min-fraction-digits="0"
+            :max-fraction-digits="2"
+            :step="0.25"
+          />
+        </div>
+        <div class="flex flex-col gap-2">
+          <label for="limits-ram">{{ t.resourceMemory }}</label
+          ><InputNumber
+            v-model="limitsForm.memory_mb"
+            input-id="limits-ram"
+            :min="0"
+            :max="16777216"
+            :use-grouping="false"
+          />
+        </div>
+        <div class="flex justify-end gap-2 sm:col-span-2">
+          <Button :label="t.cancel" severity="secondary" @click="limitsVisible = false" /><Button
+            type="submit"
+            :label="t.save"
+            :loading="limitsSaving"
+          />
+        </div>
+      </form>
+    </Dialog>
+    <Dialog
       v-model:visible="logsVisible"
       modal
       maximizable
@@ -799,6 +991,29 @@ onBeforeUnmount(() => window.clearInterval(pullTimer))
       <form class="space-y-4" @submit.prevent="runContainer">
         <p class="muted text-sm">{{ t.runContainerHint }}</p>
         <div class="grid gap-3 sm:grid-cols-2">
+          <p class="muted text-sm sm:col-span-2">{{ t.resourceHint }}</p>
+          <div class="flex flex-col gap-2">
+            <label for="run-cpu">{{ t.resourceCPU }}</label
+            ><InputNumber
+              v-model="runForm.cpus"
+              input-id="run-cpu"
+              :min="0"
+              :max="1024"
+              :min-fraction-digits="0"
+              :max-fraction-digits="2"
+              :step="0.25"
+            />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label for="run-ram">{{ t.resourceMemory }}</label
+            ><InputNumber
+              v-model="runForm.memory_mb"
+              input-id="run-ram"
+              :min="0"
+              :max="16777216"
+              :use-grouping="false"
+            />
+          </div>
           <InputText v-model="runForm.image" :placeholder="t.imageRef" required autofocus />
           <InputText v-model="runForm.name" :placeholder="t.containerNameOptional" />
           <div class="flex flex-col gap-1">

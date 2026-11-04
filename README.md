@@ -209,3 +209,9 @@ sudo mini-ubuntu-server uninstall
 ## Лицензия
 
 Лицензия пока не выбрана. До появления файла `LICENSE` стандартное авторское право сохраняется, и repository нельзя считать open-source лицензированным.
+
+## Docker resources and database clients
+
+Docker shows CPU, RAM, network/disk I/O and PIDs with pausable 30-second refresh. Administrators configure CPU/RAM limits at creation or from the container menu. The Databases page includes PostgreSQL, MySQL/MariaDB and MongoDB clients for browsing tables/collections in 100-record pages. Credentials stay in browser memory only. See [Docker and database browser](docs/docker-databases.md) for permissions, TLS, API and limitations.
+
+Install the verified local build with `sudo bash scripts/install-resource-db-build.sh`; it backs up the binary, configuration and data, restarts the service and rolls back the binary if health verification fails.
