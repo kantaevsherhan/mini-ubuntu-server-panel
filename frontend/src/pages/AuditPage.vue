@@ -9,6 +9,7 @@ import Tag from 'primevue/tag'
 import api from '../services/api'
 import { formatDateTime } from '../services/dateTime'
 import { useI18n } from '../services/i18n'
+import { useTableRow } from '../composables/useTableRow'
 
 interface AuditEvent {
   id: number
@@ -27,6 +28,7 @@ const loading = ref(false)
 const selected = ref<AuditEvent | null>(null)
 const detailsVisible = ref(false)
 const { t, locale } = useI18n()
+const { rowSize } = useTableRow()
 
 const filtered = computed(() => {
   const value = query.value.trim().toLocaleLowerCase()
@@ -56,39 +58,54 @@ onMounted(load)
 </script>
 
 <template>
-  <section>
-    <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+  <section class="page">
+    <header class="page-header">
       <div>
-        <h1 class="m-0 text-2xl font-semibold">{{ t.audit }}</h1>
-        <p class="muted mb-0 mt-2">{{ t.auditHint }}</p>
+        <h1 class="page-title">{{ t.audit }}</h1>
+        <p class="page-subtitle">{{ t.auditHint }}</p>
       </div>
-      <div class="flex w-full gap-2 md:w-auto">
-        <InputText v-model="query" :placeholder="t.searchAudit" class="min-w-0 flex-1 md:w-80" />
-        <Button :label="t.refresh" icon="pi pi-refresh" :loading="loading" @click="load" />
+      <div class="page-actions">
+        <Button
+          :label="t.refresh"
+          icon="pi pi-refresh"
+          severity="secondary"
+          outlined
+          :loading="loading"
+          @click="load"
+        />
       </div>
-    </div>
+    </header>
+    <InputText v-model="query" :placeholder="t.searchAudit" class="w-full sm:max-w-md" />
 
     <DataTable
       :value="filtered"
       :loading="loading"
       size="small"
       scrollable
-      scroll-height="calc(100vh - 13rem)"
-      :virtual-scroller-options="{ itemSize: 49 }"
+      scroll-height="calc(100vh - 17rem)"
+      :virtual-scroller-options="{ itemSize: rowSize }"
       striped-rows
-      class="panel-card"
+      class="vt"
     >
       <template #empty>{{ t.noAuditEvents }}</template>
       <Column field="created_at" :header="t.time" style="min-width: 11rem">
-        <template #body="{ data }">{{ formatDateTime(data.created_at, locale) }}</template>
+        <template #body="{ data }"
+          ><span class="muted tabular-nums">{{
+            formatDateTime(data.created_at, locale)
+          }}</span></template
+        >
       </Column>
       <Column field="action" :header="t.action" style="min-width: 13rem">
         <template #body="{ data }"><Tag severity="secondary" :value="data.action" /></template>
       </Column>
       <Column :header="t.target" style="min-width: 12rem">
         <template #body="{ data }">
-          <span>{{ data.target_type }}</span>
-          <span v-if="data.target_id" class="muted ml-1">· {{ data.target_id }}</span>
+          <span
+            class="cell-clip [--clip:22rem]"
+            :title="`${data.target_type} · ${data.target_id || ''}`"
+            >{{ data.target_type
+            }}<span v-if="data.target_id" class="muted ml-1">· {{ data.target_id }}</span></span
+          >
         </template>
       </Column>
       <Column field="actor_user_id" :header="t.auditActor" style="min-width: 7rem">
@@ -101,6 +118,8 @@ onMounted(load)
             icon="pi pi-eye"
             text
             rounded
+            size="small"
+            severity="secondary"
             :aria-label="t.viewDetails"
             @click="showDetails(data)"
           />

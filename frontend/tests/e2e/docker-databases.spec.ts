@@ -127,6 +127,61 @@ test('Docker samples refresh at 30 seconds and can be paused', async ({ page }) 
   })
 })
 
+test('Container table stays usable while stats load and scrolls without jumping back', async ({
+  page,
+}) => {
+  // Long names and digest-only images used to wrap rows taller than the virtual scroller's
+  // itemSize, which made the list snap backwards while scrolling.
+  const containers = Array.from({ length: 40 }, (_, index) => ({
+    id: `c${String(index).padStart(11, '0')}`,
+    name: `very-long-compose-project-name-service-replica-${index}`,
+    image: `sha256:${'0123456789abcdef'.repeat(4)}`,
+    state: 'running',
+    status: 'Up 2 hours',
+    ports: ['0.0.0.0:8080->80/tcp', '[::]:8080->80/tcp'],
+    health: index % 2 ? 'healthy' : '',
+    created_at: '2026-11-01T12:00:00Z',
+  }))
+  let releaseStats: () => void = () => {}
+  const statsReady = new Promise<void>((resolve) => (releaseStats = resolve))
+  await page.route('**/api/v1/docker/containers', (route) => route.fulfill({ json: containers }))
+  await page.route('**/api/v1/docker/stats', async (route) => {
+    await statsReady
+    await route.fulfill({ json: {} })
+  })
+  await page.goto('/docker')
+  await expect(page.getByText(containers[0]!.name)).toBeVisible()
+  await expect(page.locator('.p-datatable-mask')).toHaveCount(0)
+  releaseStats()
+
+  const table = page.locator('.vt').first()
+  const heights = await table.evaluate((element) => {
+    const expected = parseFloat(getComputedStyle(element).getPropertyValue('--vt-row'))
+    const rows = [...element.querySelectorAll('.p-datatable-tbody > tr')]
+    return { expected, actual: [...new Set(rows.map((row) => row.getBoundingClientRect().height))] }
+  })
+  expect(heights.actual).toEqual([heights.expected])
+
+  const scroller = table.locator('.p-virtualscroller')
+  const box = (await scroller.boundingBox())!
+  await page.mouse.move(box.x + box.width / 3, box.y + Math.min(box.height / 2, 160))
+  const positions: number[] = []
+  for (let step = 0; step < 25; step++) {
+    await page.mouse.wheel(0, 150)
+    await page.waitForTimeout(60)
+    positions.push(await scroller.evaluate((element) => element.scrollTop))
+  }
+  expect(positions.at(-1)!).toBeGreaterThan(0)
+  for (let i = 1; i < positions.length; i++)
+    expect(positions[i]!).toBeGreaterThanOrEqual(positions[i - 1]!)
+  expect(
+    await page.evaluate(() => {
+      const main = document.querySelector('main')!
+      return main.scrollWidth > main.clientWidth + 1
+    }),
+  ).toBe(false)
+})
+
 test('Database client connects, edits rows, escapes data and clears credentials', async ({
   page,
 }) => {

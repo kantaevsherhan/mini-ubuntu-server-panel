@@ -105,29 +105,30 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="space-y-4">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+  <section class="page">
+    <header class="page-header">
       <div>
         <div class="flex items-center gap-3">
-          <h1 class="text-2xl font-semibold">{{ t.firewall }}</h1>
+          <h1 class="page-title">{{ t.firewall }}</h1>
           <Tag
             :value="status.active ? t.active : t.disabled"
             :severity="status.active ? 'success' : 'secondary'"
           />
         </div>
-        <p class="muted mt-1 text-sm">{{ t.firewallHint }}</p>
+        <p class="page-subtitle">{{ t.firewallHint }}</p>
       </div>
-      <div class="flex gap-2">
+      <div class="page-actions">
         <Button
           :label="t.refresh"
           icon="pi pi-refresh"
           :loading="loading"
           severity="secondary"
+          outlined
           @click="load"
         />
         <Button v-if="canManage" :label="t.addFirewallRule" icon="pi pi-plus" @click="openCreate" />
       </div>
-    </div>
+    </header>
 
     <DataTable :value="status.rules" :loading="loading" size="small" striped-rows data-key="number">
       <Column field="number" header="#" sortable class="w-20" />

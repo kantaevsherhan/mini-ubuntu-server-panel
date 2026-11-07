@@ -11,6 +11,7 @@ import RefreshControls from '../components/RefreshControls.vue'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
 import api from '../services/api'
 import { useI18n } from '../services/i18n'
+import { useTableRow } from '../composables/useTableRow'
 
 interface SystemService {
   name: string
@@ -30,6 +31,7 @@ const busyUnit = ref('')
 const confirm = useConfirm()
 const toast = useToast()
 const { t } = useI18n()
+const { rowSize } = useTableRow()
 const filtered = computed(() => {
   const value = query.value.trim().toLocaleLowerCase()
   if (!value) return items.value
@@ -86,11 +88,11 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
 </script>
 
 <template>
-  <section class="space-y-4">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+  <section class="page">
+    <header class="page-header">
       <div>
-        <h1 class="text-2xl font-semibold">{{ t.services }}</h1>
-        <p class="muted mt-1 text-sm">{{ t.servicesHint }}</p>
+        <h1 class="page-title">{{ t.services }}</h1>
+        <p class="page-subtitle">{{ t.servicesHint }}</p>
       </div>
       <RefreshControls
         :loading="loading"
@@ -98,7 +100,7 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
         @refresh="load()"
         @toggle="toggleAutoRefresh"
       />
-    </div>
+    </header>
 
     <InputText v-model="query" :placeholder="t.searchServices" class="w-full sm:max-w-md" />
 
@@ -107,18 +109,26 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
       :loading="loading"
       scrollable
       scroll-height="calc(100vh - 15rem)"
-      :virtual-scroller-options="{ itemSize: 48, delay: 100 }"
+      :virtual-scroller-options="{ itemSize: rowSize, delay: 100 }"
       size="small"
       striped-rows
       data-key="name"
-      class="min-h-96"
+      class="vt min-h-96"
     >
       <Column field="name" :header="t.serviceName" sortable>
         <template #body="{ data }"
-          ><span class="font-mono text-xs">{{ data.name }}</span></template
+          ><span class="cell-clip font-mono text-xs [--clip:18rem]" :title="data.name">{{
+            data.name
+          }}</span></template
         >
       </Column>
-      <Column field="description" :header="t.description" sortable />
+      <Column field="description" :header="t.description" sortable class="w-full">
+        <template #body="{ data }"
+          ><span class="cell-clip muted [--clip:26rem]" :title="data.description">{{
+            data.description === data.name ? '' : data.description
+          }}</span></template
+        >
+      </Column>
       <Column field="active_state" :header="t.status" sortable class="w-32">
         <template #body="{ data }"
           ><Tag :value="data.active_state" :severity="activeSeverity(data.active_state)"
@@ -130,7 +140,7 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
           ><Tag :value="data.enabled || '—'" :severity="enabledSeverity(data.enabled)"
         /></template>
       </Column>
-      <Column :header="t.actions" frozen align-frozen="right" class="w-72">
+      <Column :header="t.actions" frozen align-frozen="right">
         <template #body="{ data }">
           <Tag
             v-if="data.name === 'mini-ubuntu-server.service'"
@@ -138,8 +148,9 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
             severity="secondary"
             icon="pi pi-lock"
           />
-          <div v-else class="flex gap-1">
+          <div v-else class="flex items-center justify-end gap-1">
             <Button
+              v-tooltip.top="t.start"
               icon="pi pi-play"
               size="small"
               text
@@ -149,6 +160,7 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
               @click="requestAction(data, 'start')"
             />
             <Button
+              v-tooltip.top="t.stop"
               icon="pi pi-stop"
               size="small"
               text
@@ -157,6 +169,7 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
               @click="requestAction(data, 'stop')"
             />
             <Button
+              v-tooltip.top="t.restart"
               icon="pi pi-refresh"
               size="small"
               text
@@ -168,6 +181,7 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
               :label="t.enable"
               size="small"
               text
+              class="w-28"
               @click="requestAction(data, 'enable')"
             />
             <Button
@@ -175,6 +189,7 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
               :label="t.disable"
               size="small"
               text
+              class="w-28"
               severity="warn"
               @click="requestAction(data, 'disable')"
             />

@@ -117,7 +117,7 @@ onMounted(load)
 </script>
 
 <template>
-  <section :class="['terminal-page', { 'terminal-page--fullscreen': fullscreen }]">
+  <section :class="['page terminal-page', { 'terminal-page--fullscreen': fullscreen }]">
     <header v-if="!fullscreen" class="page-header">
       <div>
         <h1 class="page-title">{{ t.terminal }}</h1>
@@ -207,7 +207,7 @@ onMounted(load)
         />
       </div>
     </div>
-    <p v-if="!fullscreen" class="muted mt-2 text-xs">
+    <p v-if="!fullscreen" class="muted -mt-2 text-xs">
       <i class="pi pi-info-circle mr-1" />{{ t.terminalPrivilegeHint }}
     </p>
   </section>

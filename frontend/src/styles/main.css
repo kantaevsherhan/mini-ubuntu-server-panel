@@ -49,14 +49,47 @@ body,
   -webkit-font-smoothing: antialiased;
 }
 
+/* Dense desktop workspace: PrimeVue sizes are rem-based, so one root size scales controls,
+   tables and text together. Phones keep 16px so iOS does not zoom into focused inputs. */
+@media (min-width: 1024px) {
+  html {
+    font-size: 14px;
+  }
+}
+
 /* Page scaffolding shared by every screen. */
+.page {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .page-header {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 12px 16px;
+}
+
+.page-header > :first-child {
+  min-width: min(100%, 16rem);
+  flex: 1 1 24rem;
+}
+
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .page-actions {
+    justify-content: flex-start;
+  }
 }
 
 .page-title {
@@ -138,6 +171,50 @@ body,
   background: var(--app-surface);
 }
 
+.p-datatable {
+  font-size: 14px;
+}
+
+.p-datatable .p-datatable-column-title {
+  white-space: nowrap;
+}
+
+/* Virtual-scrolled tables: the scroller positions rows by a fixed itemSize, so every row
+   must render exactly --vt-row high. Cells never wrap; long values are truncated with a title. */
+.vt {
+  --vt-row: 48px;
+}
+
+.vt.vt-tall {
+  --vt-row: 56px;
+}
+
+/* Keep in sync with useTableRow(). */
+@media (min-width: 1024px) {
+  .vt {
+    --vt-row: 44px;
+  }
+
+  .vt.vt-tall {
+    --vt-row: 52px;
+  }
+}
+
+.vt .p-datatable-tbody > tr > td {
+  height: var(--vt-row);
+  padding-top: 0;
+  padding-bottom: 0;
+  white-space: nowrap;
+}
+
+.cell-clip {
+  display: block;
+  max-width: var(--clip, 18rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .p-datatable .p-datatable-thead > tr > th {
   font-size: 0.75rem;
   font-weight: 600;
@@ -163,8 +240,19 @@ body,
   border-radius: 999px;
 }
 
-.p-tablist-tab-list {
+.p-tablist,
+.p-tablist-tab-list,
+.p-tablist-content,
+.p-tab {
   background: transparent !important;
+}
+
+.p-tablist-tab-list {
+  border-color: var(--app-border) !important;
+}
+
+.p-tab {
+  white-space: nowrap;
 }
 
 .p-tabpanels {

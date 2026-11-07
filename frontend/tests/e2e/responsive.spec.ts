@@ -115,7 +115,9 @@ test('dashboard and settings adapt without horizontal page overflow', async ({
   await expect(page.getByRole('heading', { name: 'Настройки' })).toBeVisible()
   await expect(page.getByRole('tab', { name: 'Интерфейс' })).toBeVisible()
   const overflows = await page.evaluate(
-    () => document.documentElement.scrollWidth > window.innerWidth + 1,
+    () =>
+      document.documentElement.scrollWidth > window.innerWidth + 1 ||
+      document.querySelector('main')!.scrollWidth > document.querySelector('main')!.clientWidth + 1,
   )
   expect(overflows).toBe(false)
 })
@@ -140,7 +142,9 @@ test('audit and notification modules render real responsive pages', async ({ pag
   await expect(page.getByText('История доставки', { exact: true })).toBeVisible()
 
   const overflows = await page.evaluate(
-    () => document.documentElement.scrollWidth > window.innerWidth + 1,
+    () =>
+      document.documentElement.scrollWidth > window.innerWidth + 1 ||
+      document.querySelector('main')!.scrollWidth > document.querySelector('main')!.clientWidth + 1,
   )
   expect(overflows).toBe(false)
 })

@@ -9,6 +9,7 @@ import Tag from 'primevue/tag'
 import api from '../services/api'
 import { formatDateTime } from '../services/dateTime'
 import { useI18n } from '../services/i18n'
+import { useTableRow } from '../composables/useTableRow'
 
 interface LogEntry {
   timestamp: string
@@ -32,6 +33,7 @@ const selectedRange = ref('day')
 const selectedLimit = ref(1000)
 const loading = ref(false)
 const { t, locale } = useI18n()
+const { rowSize } = useTableRow()
 
 const unitOptions = computed(() => [
   { label: t.value.allServices, value: '' },
@@ -114,14 +116,23 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="space-y-4">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+  <section class="page">
+    <header class="page-header">
       <div>
-        <h1 class="text-2xl font-semibold">{{ t.logs }}</h1>
-        <p class="muted mt-1 text-sm">{{ t.logsHint }}</p>
+        <h1 class="page-title">{{ t.logs }}</h1>
+        <p class="page-subtitle">{{ t.logsHint }}</p>
       </div>
-      <Button :label="t.refresh" icon="pi pi-refresh" :loading="loading" @click="load" />
-    </div>
+      <div class="page-actions">
+        <Button
+          :label="t.refresh"
+          icon="pi pi-refresh"
+          severity="secondary"
+          outlined
+          :loading="loading"
+          @click="load"
+        />
+      </div>
+    </header>
 
     <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
       <Select
@@ -156,33 +167,40 @@ onMounted(async () => {
       :loading="loading"
       scrollable
       scroll-height="calc(100vh - 16rem)"
-      :virtual-scroller-options="{ itemSize: 52, delay: 100 }"
+      :virtual-scroller-options="{ itemSize: rowSize, delay: 100 }"
       size="small"
       striped-rows
-      class="min-h-96"
+      class="vt min-h-96"
     >
-      <Column field="timestamp" :header="t.time" sortable class="w-44">
-        <template #body="{ data }">{{ formatDateTime(data.timestamp, locale) }}</template>
+      <Column field="timestamp" :header="t.time" sortable>
+        <template #body="{ data }"
+          ><span class="muted tabular-nums">{{
+            formatDateTime(data.timestamp, locale)
+          }}</span></template
+        >
       </Column>
       <Column field="priority" :header="t.severity" sortable class="w-28">
         <template #body="{ data }"
           ><Tag :value="priorityLabel(data.priority)" :severity="prioritySeverity(data.priority)"
         /></template>
       </Column>
-      <Column field="unit" :header="t.serviceName" sortable class="w-56">
+      <Column field="unit" :header="t.serviceName" sortable>
         <template #body="{ data }"
-          ><span class="font-mono text-xs">{{ data.unit || '—' }}</span></template
+          ><span class="cell-clip font-mono text-xs [--clip:14rem]" :title="data.unit">{{
+            data.unit || '—'
+          }}</span></template
         >
       </Column>
-      <Column field="identifier" :header="t.logSource" sortable class="w-40">
+      <Column field="identifier" :header="t.logSource" sortable>
         <template #body="{ data }"
-          >{{ data.identifier
-          }}<span v-if="data.pid" class="muted">[{{ data.pid }}]</span></template
+          ><span class="cell-clip [--clip:12rem]"
+            >{{ data.identifier }}<span v-if="data.pid" class="muted">[{{ data.pid }}]</span></span
+          ></template
         >
       </Column>
-      <Column field="message" :header="t.message">
+      <Column field="message" :header="t.message" class="w-full">
         <template #body="{ data }"
-          ><span class="block max-w-[60rem] truncate font-mono text-xs" :title="data.message">{{
+          ><span class="cell-clip font-mono text-xs [--clip:60rem]" :title="data.message">{{
             data.message
           }}</span></template
         >

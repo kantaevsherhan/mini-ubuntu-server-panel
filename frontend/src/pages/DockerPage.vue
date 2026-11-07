@@ -12,6 +12,7 @@ import InputText from 'primevue/inputtext'
 import Menu from 'primevue/menu'
 import Message from 'primevue/message'
 import Select from 'primevue/select'
+import Skeleton from 'primevue/skeleton'
 import Tab from 'primevue/tab'
 import TabList from 'primevue/tablist'
 import TabPanel from 'primevue/tabpanel'
@@ -25,6 +26,7 @@ import api from '../services/api'
 import { formatDateTime } from '../services/dateTime'
 import { useI18n } from '../services/i18n'
 import { useAuthStore } from '../stores/auth'
+import { useTableRow } from '../composables/useTableRow'
 
 interface DockerContainer {
   id: string
@@ -76,6 +78,7 @@ const auth = useAuthStore()
 const confirm = useConfirm()
 const toast = useToast()
 const { t, locale } = useI18n()
+const { rowSize } = useTableRow()
 const isAdmin = computed(() => auth.role === 'admin')
 const tab = ref('containers')
 
@@ -99,17 +102,30 @@ interface ContainerStats {
 }
 const stats = ref<Record<string, ContainerStats>>({})
 const statsFailed = ref(false)
+const statsLoading = ref(false)
 const limitsTarget = ref<DockerContainer>()
 const limitsVisible = ref(false)
 const limitsSaving = ref(false)
 const limitsForm = reactive<ResourceLimits>({ cpus: 0, memory_mb: 0 })
+// Docker samples CPU over about a second per container, so stats arrive after the list:
+// the table stays usable and only the metric cells wait.
 async function loadStats() {
+  statsLoading.value = true
   try {
     stats.value = (await api.get<Record<string, ContainerStats>>('/docker/stats')).data
     statsFailed.value = Object.values(stats.value).some((s) => s.error)
   } catch {
     statsFailed.value = true
+  } finally {
+    statsLoading.value = false
   }
+}
+function liveStats(container: DockerContainer) {
+  const value = stats.value[container.id]
+  return container.state === 'running' && value && !value.error ? value : undefined
+}
+function shortImage(image: string) {
+  return image.startsWith('sha256:') ? image.slice(7, 19) : image
 }
 function openLimits(container: DockerContainer) {
   limitsTarget.value = container
@@ -196,10 +212,10 @@ async function loadPullJobs() {
 
 async function load() {
   loading.value = true
+  void loadStats()
   try {
     await Promise.allSettled([
       loadContainers(),
-      loadStats(),
       loadImages(),
       loadVolumes(),
       loadNetworks(),
@@ -547,19 +563,20 @@ function prune(kind: PruneKind, label: string) {
 onMounted(load)
 // Live container state is polled only while the containers tab is visible.
 const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(async (background) => {
-  if (background && tab.value === 'containers') await Promise.all([loadContainers(), loadStats()])
+  if (background && tab.value === 'containers')
+    await Promise.all([loadContainers(true), loadStats()])
 }, 30000)
 onBeforeUnmount(() => window.clearInterval(pullTimer))
 </script>
 
 <template>
-  <section class="space-y-4">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+  <section class="page">
+    <header class="page-header">
       <div>
-        <h1 class="text-2xl font-semibold">{{ t.docker }}</h1>
-        <p class="muted mt-1 text-sm">{{ t.dockerHint }}</p>
+        <h1 class="page-title">{{ t.docker }}</h1>
+        <p class="page-subtitle">{{ t.dockerHint }}</p>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div class="page-actions">
         <Button
           v-if="isAdmin"
           :label="t.pullImage"
@@ -575,7 +592,7 @@ onBeforeUnmount(() => window.clearInterval(pullTimer))
           @toggle="toggleAutoRefresh"
         />
       </div>
-    </div>
+    </header>
 
     <div v-if="pullJobs.length" class="flex flex-wrap items-center gap-2 text-sm">
       <span class="muted">{{ t.pullJobs }}:</span>
@@ -599,127 +616,143 @@ onBeforeUnmount(() => window.clearInterval(pullTimer))
       </TabList>
       <TabPanels>
         <TabPanel value="containers" class="space-y-3">
-          <p class="muted text-sm">{{ t.statsHint }}</p>
+          <div class="flex flex-wrap items-center gap-3">
+            <InputText
+              v-model="query"
+              :placeholder="t.searchContainers"
+              class="w-full sm:max-w-sm"
+            />
+            <span class="muted text-xs">
+              <i v-if="statsLoading" class="pi pi-spin pi-spinner mr-1 text-[0.7rem]" />{{
+                t.statsHint
+              }}
+            </span>
+          </div>
           <Message v-if="statsFailed" severity="warn" :closable="false">{{
             t.statsFailed
           }}</Message>
-          <InputText v-model="query" :placeholder="t.searchContainers" class="w-full sm:max-w-md" />
           <DataTable
             :value="filtered"
-            :loading="loading"
+            :loading="loading && !containers.length"
             scrollable
-            scroll-height="calc(100vh - 22rem)"
+            scroll-height="calc(100vh - 19rem)"
             size="small"
             striped-rows
             data-key="id"
-            :virtual-scroller-options="{ itemSize: 52 }"
-            class="min-h-80"
+            :virtual-scroller-options="{ itemSize: rowSize }"
+            class="vt min-h-80"
           >
-            <Column field="name" :header="t.containerName" sortable />
-            <Column field="image" :header="t.image" sortable />
-            <Column field="state" :header="t.status" sortable class="w-28">
+            <Column field="name" :header="t.containerName" sortable>
               <template #body="{ data }">
-                <Tag
-                  :value="data.state"
-                  :severity="stateSeverity(data.state)"
-                  :title="data.status"
-                />
+                <span class="cell-clip font-medium [--clip:16rem]" :title="data.name">{{
+                  data.name
+                }}</span>
               </template>
             </Column>
-            <Column :header="t.statsCPU"
-              ><template #body="{ data }"
-                ><span
-                  v-if="
-                    data.state === 'running' &&
-                    stats[data.id] &&
-                    !statsFailed &&
-                    !stats[data.id]!.error
-                  "
-                  class="whitespace-nowrap tabular-nums"
-                  >{{ stats[data.id]!.cpu_percent.toFixed(1) }}%</span
-                ><span v-else>—</span></template
-              ></Column
-            >
-            <Column :header="t.statsMemory"
-              ><template #body="{ data }"
-                ><span
-                  v-if="
-                    data.state === 'running' &&
-                    stats[data.id] &&
-                    !statsFailed &&
-                    !stats[data.id]!.error
-                  "
-                  class="whitespace-nowrap tabular-nums"
-                  >{{ formatBytes(stats[data.id]!.memory_usage) }} /
-                  {{ formatBytes(stats[data.id]!.memory_limit) }}</span
-                ><span v-else>—</span></template
-              ></Column
-            >
-            <Column :header="t.statsNetwork"
-              ><template #body="{ data }"
-                ><span
-                  v-if="
-                    data.state === 'running' &&
-                    stats[data.id] &&
-                    !statsFailed &&
-                    !stats[data.id]!.error
-                  "
-                  class="whitespace-nowrap tabular-nums"
-                  >{{ formatBytes(stats[data.id]!.network_rx) }} /
-                  {{ formatBytes(stats[data.id]!.network_tx) }}</span
-                ><span v-else>—</span></template
-              ></Column
-            >
-            <Column :header="t.statsDisk"
-              ><template #body="{ data }"
-                ><span
-                  v-if="
-                    data.state === 'running' &&
-                    stats[data.id] &&
-                    !statsFailed &&
-                    !stats[data.id]!.error
-                  "
-                  class="whitespace-nowrap tabular-nums"
-                  >{{ formatBytes(stats[data.id]!.block_read) }} /
-                  {{ formatBytes(stats[data.id]!.block_write) }}</span
-                ><span v-else>—</span></template
-              ></Column
-            >
-            <Column :header="t.statsPIDs"
-              ><template #body="{ data }"
-                ><span
-                  v-if="
-                    data.state === 'running' &&
-                    stats[data.id] &&
-                    !statsFailed &&
-                    !stats[data.id]!.error
-                  "
-                  class="whitespace-nowrap tabular-nums"
-                  >{{ stats[data.id]!.pids }}</span
-                ><span v-else>—</span></template
-              ></Column
-            >
-            <Column field="health" :header="t.health" sortable class="w-28">
+            <Column field="image" :header="t.image" sortable>
               <template #body="{ data }">
-                <Tag
-                  v-if="data.health"
-                  :value="data.health"
-                  :severity="healthSeverity(data.health)"
+                <span class="cell-clip muted [--clip:14rem]" :title="data.image">{{
+                  shortImage(data.image)
+                }}</span>
+              </template>
+            </Column>
+            <Column field="state" :header="t.status" sortable>
+              <template #body="{ data }">
+                <span class="flex items-center gap-1">
+                  <Tag
+                    :value="data.state"
+                    :severity="stateSeverity(data.state)"
+                    :title="data.status"
+                  />
+                  <Tag
+                    v-if="data.health && data.health !== 'none'"
+                    :value="data.health"
+                    :severity="healthSeverity(data.health)"
+                    :title="t.health"
+                  />
+                </span>
+              </template>
+            </Column>
+            <Column :header="t.statsCPU">
+              <template #body="{ data }">
+                <span v-if="liveStats(data)" class="tabular-nums"
+                  >{{ liveStats(data)!.cpu_percent.toFixed(1) }}%</span
+                >
+                <Skeleton
+                  v-else-if="statsLoading && data.state === 'running'"
+                  width="3rem"
+                  height="0.9rem"
                 />
-                <span v-else>—</span>
+                <span v-else class="muted">—</span>
+              </template>
+            </Column>
+            <Column :header="t.statsMemory">
+              <template #body="{ data }">
+                <span v-if="liveStats(data)" class="tabular-nums"
+                  >{{ formatBytes(liveStats(data)!.memory_usage) }}
+                  <span class="muted"
+                    >/ {{ formatBytes(liveStats(data)!.memory_limit) }}</span
+                  ></span
+                >
+                <Skeleton
+                  v-else-if="statsLoading && data.state === 'running'"
+                  width="6rem"
+                  height="0.9rem"
+                />
+                <span v-else class="muted">—</span>
+              </template>
+            </Column>
+            <Column :header="t.statsNetwork">
+              <template #body="{ data }">
+                <span v-if="liveStats(data)" class="tabular-nums"
+                  >{{ formatBytes(liveStats(data)!.network_rx) }} /
+                  {{ formatBytes(liveStats(data)!.network_tx) }}</span
+                >
+                <Skeleton
+                  v-else-if="statsLoading && data.state === 'running'"
+                  width="6rem"
+                  height="0.9rem"
+                />
+                <span v-else class="muted">—</span>
+              </template>
+            </Column>
+            <Column :header="t.statsDisk">
+              <template #body="{ data }">
+                <span v-if="liveStats(data)" class="tabular-nums"
+                  >{{ formatBytes(liveStats(data)!.block_read) }} /
+                  {{ formatBytes(liveStats(data)!.block_write) }}</span
+                >
+                <Skeleton
+                  v-else-if="statsLoading && data.state === 'running'"
+                  width="6rem"
+                  height="0.9rem"
+                />
+                <span v-else class="muted">—</span>
+              </template>
+            </Column>
+            <Column :header="t.statsPIDs">
+              <template #body="{ data }">
+                <span v-if="liveStats(data)" class="tabular-nums">{{ liveStats(data)!.pids }}</span>
+                <span v-else class="muted">—</span>
               </template>
             </Column>
             <Column field="ports" :header="t.ports">
               <template #body="{ data }">
-                <span class="font-mono text-xs">{{ data.ports.join(', ') || '—' }}</span>
+                <span
+                  class="cell-clip font-mono text-xs [--clip:12rem]"
+                  :title="data.ports.join('\n')"
+                  >{{ data.ports.join(', ') || '—' }}</span
+                >
               </template>
             </Column>
             <Column field="created_at" :header="t.created" sortable>
-              <template #body="{ data }">{{ formatDateTime(data.created_at, locale) }}</template>
-            </Column>
-            <Column :header="t.actions" frozen align-frozen="right" class="w-40">
               <template #body="{ data }">
-                <div class="flex gap-1">
+                <span class="muted">{{ formatDateTime(data.created_at, locale) }}</span>
+              </template>
+            </Column>
+            <Column :header="t.actions" frozen align-frozen="right">
+              <template #body="{ data }">
+                <div class="flex justify-end gap-1">
                   <Button
                     v-if="data.state !== 'running' && data.state !== 'paused'"
                     v-tooltip.top="t.start"
@@ -771,16 +804,25 @@ onBeforeUnmount(() => window.clearInterval(pullTimer))
             :value="images"
             :loading="loading"
             scrollable
-            scroll-height="calc(100vh - 20rem)"
+            scroll-height="calc(100vh - 17rem)"
             size="small"
             striped-rows
             data-key="id"
-            :virtual-scroller-options="{ itemSize: 52 }"
+            :virtual-scroller-options="{ itemSize: rowSize }"
+            class="vt"
           >
             <Column :header="t.tags">
               <template #body="{ data }">
-                <div class="flex flex-wrap gap-1">
-                  <Tag v-for="tag in data.tags" :key="tag" :value="tag" severity="secondary" />
+                <div class="flex items-center gap-1" :title="data.tags.join(', ')">
+                  <Tag
+                    v-if="data.tags.length"
+                    :value="data.tags[0]"
+                    severity="secondary"
+                    class="max-w-[22rem] truncate"
+                  />
+                  <span v-if="data.tags.length > 1" class="muted text-xs"
+                    >+{{ data.tags.length - 1 }}</span
+                  >
                   <span v-if="!data.tags.length" class="muted">&lt;none&gt;</span>
                 </div>
               </template>

@@ -18,6 +18,7 @@ import { formatDateTime } from '../services/dateTime'
 import { useI18n } from '../services/i18n'
 import { loadMonaco } from '../services/monaco'
 import { usePreferencesStore } from '../stores/preferences'
+import { useTableRow } from '../composables/useTableRow'
 
 interface FileRoot {
   id: number
@@ -58,6 +59,7 @@ const toast = useToast()
 const confirm = useConfirm()
 const preferences = usePreferencesStore()
 const { t, locale } = useI18n()
+const { rowSize } = useTableRow()
 let editor:
   import('monaco-editor/esm/vs/editor/editor.api').editor.IStandaloneCodeEditor | undefined
 let monaco: typeof import('monaco-editor/esm/vs/editor/editor.api') | undefined
@@ -278,16 +280,18 @@ onBeforeUnmount(closeEditor)
 </script>
 
 <template>
-  <section class="space-y-4">
-    <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+  <section class="page">
+    <header class="page-header">
       <div>
-        <h1 class="text-2xl font-semibold">{{ t.files }}</h1>
-        <p class="muted mt-1 text-sm">{{ t.filesHint }}</p>
+        <h1 class="page-title">{{ t.files }}</h1>
+        <p class="page-subtitle">{{ t.filesHint }}</p>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div class="page-actions">
         <Button
+          v-tooltip.bottom="t.parentFolder"
           icon="pi pi-arrow-up"
           severity="secondary"
+          outlined
           :disabled="!currentPath"
           :aria-label="t.parentFolder"
           @click="goUp"
@@ -304,14 +308,16 @@ onBeforeUnmount(closeEditor)
           @uploader="uploadFile"
         />
         <Button
+          v-tooltip.bottom="t.refresh"
           icon="pi pi-refresh"
           severity="secondary"
+          outlined
           :loading="loading"
           :aria-label="t.refresh"
           @click="loadEntries"
         />
       </div>
-    </div>
+    </header>
 
     <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(18rem,24rem)_1fr]">
       <Select
@@ -325,7 +331,7 @@ onBeforeUnmount(closeEditor)
       <InputText v-model="search" :placeholder="t.searchFiles" />
     </div>
 
-    <div class="flex items-center gap-2 overflow-x-auto">
+    <div class="files-path">
       <Breadcrumb :home="breadcrumbHome" :model="breadcrumbItems" class="min-w-max flex-1" />
       <Tag v-if="selectedRootInfo" :value="selectedRootInfo.path" severity="secondary" />
     </div>
@@ -335,49 +341,64 @@ onBeforeUnmount(closeEditor)
       :loading="loading"
       scrollable
       scroll-height="calc(100vh - 18rem)"
-      :virtual-scroller-options="{ itemSize: 48, delay: 100 }"
+      :virtual-scroller-options="{ itemSize: rowSize, delay: 100 }"
       size="small"
       striped-rows
       data-key="path"
-      class="min-h-96"
+      class="vt min-h-96"
       @row-dblclick="onRowDoubleClick"
     >
-      <Column field="name" :header="t.name" sortable>
+      <Column field="name" :header="t.name" sortable class="w-full">
         <template #body="{ data }"
           ><Button
             :label="data.name"
             :icon="data.symlink ? 'pi pi-link' : data.directory ? 'pi pi-folder' : 'pi pi-file'"
             text
+            size="small"
+            :severity="data.directory ? undefined : 'secondary'"
             :disabled="data.symlink"
-            class="max-w-full"
+            :title="data.name"
+            class="file-name"
             @click="activate(data)"
         /></template>
       </Column>
-      <Column field="size" :header="t.size" sortable class="w-28">
-        <template #body="{ data }">{{ data.directory ? '—' : formatSize(data.size) }}</template>
+      <Column field="size" :header="t.size" sortable>
+        <template #body="{ data }"
+          ><span class="tabular-nums">{{
+            data.directory ? '—' : formatSize(data.size)
+          }}</span></template
+        >
       </Column>
-      <Column field="mode" :header="t.permissions" class="w-36"
+      <Column field="mode" :header="t.permissions"
         ><template #body="{ data }"
           ><span class="font-mono text-xs">{{ data.mode }}</span></template
         ></Column
       >
-      <Column field="modified_at" :header="t.modified" sortable class="w-48"
-        ><template #body="{ data }">{{
-          formatDateTime(data.modified_at, locale)
-        }}</template></Column
+      <Column field="modified_at" :header="t.modified" sortable
+        ><template #body="{ data }"
+          ><span class="muted tabular-nums">{{
+            formatDateTime(data.modified_at, locale)
+          }}</span></template
+        ></Column
       >
-      <Column :header="t.actions" frozen align-frozen="right" class="w-28">
+      <Column :header="t.actions" frozen align-frozen="right">
         <template #body="{ data }"
-          ><div class="flex gap-1">
+          ><div class="flex justify-end gap-1">
             <Button
               v-if="!data.directory && !data.symlink"
+              v-tooltip.top="t.edit"
               icon="pi pi-pencil"
               text
+              rounded
+              size="small"
               :aria-label="t.edit"
               @click="openEditor(data.path)"
             /><Button
+              v-tooltip.top="t.delete"
               icon="pi pi-trash"
               text
+              rounded
+              size="small"
               severity="danger"
               :aria-label="t.delete"
               @click="removeEntry(data)"
@@ -451,3 +472,29 @@ onBeforeUnmount(closeEditor)
     </Dialog>
   </section>
 </template>
+
+<style scoped>
+.files-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-surface);
+}
+.files-path :deep(.p-breadcrumb) {
+  padding: 6px 0;
+  background: transparent;
+}
+.file-name {
+  max-width: 100%;
+  justify-content: flex-start;
+}
+.file-name :deep(.p-button-label) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+</style>

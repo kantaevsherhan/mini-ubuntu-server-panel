@@ -92,6 +92,8 @@ Do not use accent colors for health by themselves: server health, warnings and f
 
 ## Layout
 
+- Every page root is `<section class="page">` with a `<header class="page-header">`: title block (`page-title`, `page-subtitle`) on the left and actions in `page-actions` on the right. Do not add per-page margins between top-level blocks; `.page` provides the 16px gap.
+- Desktop (1024px and wider) uses a 14px root font so rem-based PrimeVue controls stay compact; phones keep 16px.
 - Header uses `Menubar` and remains visible.
 - Workspace uses `Splitter`; sidebar size is saved in `localStorage`.
 - Sidebar uses `PanelMenu` and PrimeIcons.
@@ -119,6 +121,8 @@ Do not use accent colors for health by themselves: server health, warnings and f
 - Put row actions at the right edge using PrimeVue `Button`, `Menu`, or `ContextMenu`.
 - Use `Skeleton` during initial loading and a clear empty state when no rows exist.
 - Format status with semantic `Tag`: success, info, warn, danger, secondary.
+- Virtual-scrolled tables use `class="vt"` (or `"vt vt-tall"` for two-line rows) and `itemSize` from `useTableRow()`. Rows have a fixed height (44/52px on desktop, 48/56px below 1024px); cells never wrap, so long values use `.cell-clip` with a `title`. A row taller than `itemSize` makes the scroller jump back.
+- Slow secondary data (for example container stats) must not mask the table: render the rows first and show `Skeleton` only in the waiting cells.
 
 ## Dates, time, and language
 

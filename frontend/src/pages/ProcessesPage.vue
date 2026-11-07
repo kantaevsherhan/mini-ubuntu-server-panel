@@ -13,6 +13,7 @@ import api from '../services/api'
 import { formatDateTime } from '../services/dateTime'
 import { useI18n } from '../services/i18n'
 import { useAuthStore } from '../stores/auth'
+import { useTableRow } from '../composables/useTableRow'
 
 interface SystemProcess {
   pid: number
@@ -32,6 +33,7 @@ const confirm = useConfirm()
 const toast = useToast()
 const auth = useAuthStore()
 const { t, locale } = useI18n()
+const { rowSize } = useTableRow()
 const canManage = computed(() => ['admin', 'operator'].includes(auth.role))
 const filtered = computed(() => {
   const value = query.value.trim().toLocaleLowerCase()
@@ -91,11 +93,11 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
 </script>
 
 <template>
-  <section class="space-y-4">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+  <section class="page">
+    <header class="page-header">
       <div>
-        <h1 class="text-2xl font-semibold">{{ t.processes }}</h1>
-        <p class="muted mt-1 text-sm">{{ t.processesHint }}</p>
+        <h1 class="page-title">{{ t.processes }}</h1>
+        <p class="page-subtitle">{{ t.processesHint }}</p>
       </div>
       <RefreshControls
         :loading="loading"
@@ -103,7 +105,7 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
         @refresh="load()"
         @toggle="toggleAutoRefresh"
       />
-    </div>
+    </header>
 
     <InputText v-model="query" :placeholder="t.searchProcesses" class="w-full sm:max-w-md" />
 
@@ -112,52 +114,89 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
       :loading="loading"
       scrollable
       scroll-height="calc(100vh - 15rem)"
-      :virtual-scroller-options="{ itemSize: 45, delay: 100 }"
+      :virtual-scroller-options="{ itemSize: rowSize, delay: 100 }"
       size="small"
       striped-rows
       data-key="pid"
-      class="min-h-96"
+      class="vt min-h-96"
     >
-      <Column field="pid" header="PID" sortable class="w-24" />
-      <Column field="name" :header="t.processName" sortable />
-      <Column field="username" :header="t.username" sortable />
+      <Column field="pid" header="PID" sortable>
+        <template #body="{ data }"
+          ><span class="tabular-nums">{{ data.pid }}</span></template
+        >
+      </Column>
+      <Column field="name" :header="t.processName" sortable>
+        <template #body="{ data }"
+          ><span class="cell-clip font-medium [--clip:12rem]" :title="data.name">{{
+            data.name
+          }}</span></template
+        >
+      </Column>
+      <Column field="username" :header="t.username" sortable>
+        <template #body="{ data }"
+          ><span class="cell-clip [--clip:10rem]" :title="data.username">{{
+            data.username
+          }}</span></template
+        >
+      </Column>
       <Column field="state" :header="t.status" class="w-24">
         <template #body="{ data }"
           ><Tag :value="data.state" :severity="stateSeverity(data.state)"
         /></template>
       </Column>
       <Column field="cpu_percent" header="CPU" sortable class="w-28">
-        <template #body="{ data }">{{ data.cpu_percent.toFixed(1) }}%</template>
+        <template #body="{ data }"
+          ><span class="tabular-nums">{{ data.cpu_percent.toFixed(1) }}%</span></template
+        >
       </Column>
       <Column field="memory_bytes" :header="t.memory" sortable class="w-32">
-        <template #body="{ data }">{{ formatBytes(data.memory_bytes) }}</template>
+        <template #body="{ data }"
+          ><span class="tabular-nums">{{ formatBytes(data.memory_bytes) }}</span></template
+        >
       </Column>
       <Column field="started_at" :header="t.startedAt" sortable>
-        <template #body="{ data }">{{ formatDateTime(data.started_at, locale) }}</template>
-      </Column>
-      <Column field="command" :header="t.command" class="max-w-96">
         <template #body="{ data }"
-          ><span class="block truncate font-mono text-xs" :title="data.command">{{
+          ><span class="muted">{{ formatDateTime(data.started_at, locale) }}</span></template
+        >
+      </Column>
+      <Column field="command" :header="t.command" class="w-full">
+        <template #body="{ data }"
+          ><span class="cell-clip font-mono text-xs [--clip:28rem]" :title="data.command">{{
             data.command
           }}</span></template
         >
       </Column>
-      <Column v-if="canManage" :header="t.actions" frozen align-frozen="right" class="w-40">
+      <Column v-if="canManage" :header="t.actions" frozen align-frozen="right">
         <template #body="{ data }">
-          <div class="flex gap-1">
-            <Button label="HUP" size="small" text @click="requestSignal(data, 'HUP')" />
+          <div class="flex justify-end gap-1">
             <Button
-              label="TERM"
+              v-tooltip.top="'SIGHUP'"
+              icon="pi pi-replay"
               size="small"
               text
+              rounded
+              severity="secondary"
+              aria-label="HUP"
+              @click="requestSignal(data, 'HUP')"
+            />
+            <Button
+              v-tooltip.top="'SIGTERM'"
+              icon="pi pi-stop-circle"
+              size="small"
+              text
+              rounded
               severity="warn"
+              aria-label="TERM"
               @click="requestSignal(data, 'TERM')"
             />
             <Button
-              label="KILL"
+              v-tooltip.top="'SIGKILL'"
+              icon="pi pi-times-circle"
               size="small"
               text
+              rounded
               severity="danger"
+              aria-label="KILL"
               @click="requestSignal(data, 'KILL')"
             />
           </div>

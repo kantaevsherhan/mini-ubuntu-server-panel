@@ -146,8 +146,8 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
 </script>
 
 <template>
-  <section class="space-y-5">
-    <header class="page-header !mb-0">
+  <section class="page">
+    <header class="page-header">
       <div>
         <h1 class="page-title">{{ t.system }}</h1>
         <p class="page-subtitle">{{ t.systemHint }}</p>

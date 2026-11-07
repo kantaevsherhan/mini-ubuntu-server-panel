@@ -26,6 +26,7 @@ interface SystemSummary {
   reboot_required: boolean
   updates_summary: string
   disks: Array<{ mountpoint: string; total_bytes: number; used_bytes: number }>
+  memory?: { total_bytes: number; available_bytes: number }
 }
 
 const { t, locale } = useI18n()
@@ -78,7 +79,14 @@ const gauges = computed(() => {
     {
       label: t.value.memory,
       path: '',
-      value: Math.round(latest.value?.memory_percent ?? 0),
+      // Fresh installs have no samples yet: fall back to the live system snapshot.
+      value: Math.round(
+        latest.value?.memory_percent ??
+          percent(
+            (system.value?.memory?.total_bytes ?? 0) - (system.value?.memory?.available_bytes ?? 0),
+            system.value?.memory?.total_bytes,
+          ),
+      ),
       icon: 'pi pi-database',
     },
   ]
@@ -126,7 +134,7 @@ useAutoRefresh(load, 30000)
 </script>
 
 <template>
-  <section>
+  <section class="page">
     <header class="page-header">
       <div>
         <h1 class="page-title">{{ t.welcome }}</h1>
@@ -139,7 +147,7 @@ useAutoRefresh(load, 30000)
       </div>
     </header>
 
-    <div v-if="system?.reboot_required || system?.updates_summary" class="mb-4 space-y-2">
+    <div v-if="system?.reboot_required || system?.updates_summary" class="space-y-2">
       <Message v-if="system.reboot_required" severity="warn" :closable="false">
         <i class="pi pi-refresh mr-2" />{{ t.rebootRequired }}
       </Message>
@@ -163,7 +171,7 @@ useAutoRefresh(load, 30000)
       </div>
     </div>
 
-    <div class="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
       <div v-if="system" class="panel-card stat-card">
         <div class="stat-card__label">{{ t.uptime }}</div>
         <div class="stat-card__value">{{ formatUptime(system.uptime_seconds) }}</div>
@@ -185,9 +193,9 @@ useAutoRefresh(load, 30000)
       </div>
     </div>
 
-    <div class="panel-card mt-4 p-5">
+    <div class="panel-card p-5">
       <div class="mb-4 flex flex-wrap items-center gap-3">
-        <h2 class="m-0 text-base font-semibold">{{ t.metricsHistory }}</h2>
+        <h2 class="section-title">{{ t.metricsHistory }}</h2>
         <SelectButton
           v-model="range"
           :options="rangeOptions"

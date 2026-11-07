@@ -180,8 +180,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <section>
-    <h1 class="mb-5 text-2xl font-semibold">{{ t.settings }}</h1>
+  <section class="page">
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">{{ t.settings }}</h1>
+        <p class="page-subtitle">{{ t.settingsHint }}</p>
+      </div>
+    </header>
     <Tabs v-model:value="activeSection" scrollable>
       <TabList>
         <Tab v-for="section in sections" :key="section.value" :value="section.value">
@@ -191,7 +196,7 @@ onMounted(() => {
 
       <TabPanels>
         <TabPanel value="general">
-          <Card class="max-w-5xl">
+          <Card>
             <template #title>{{ t.general }}</template>
             <template #content>
               <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

@@ -56,6 +56,8 @@ type resourceEngine interface {
 	ContainerUpdate(context.Context, string, client.ContainerUpdateOptions) (client.ContainerUpdateResult, error)
 }
 
+const statsWorkers = 12
+
 // Stats uses bounded workers and a deadline shared by the entire snapshot.
 func (m Manager) Stats(ctx context.Context) (map[string]ContainerStats, error) {
 	engine, ok := m.client.(resourceEngine)
@@ -70,7 +72,10 @@ func (m Manager) Stats(ctx context.Context) (map[string]ContainerStats, error) {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	jobs := make(chan Container)
-	for i := 0; i < 4; i++ {
+	// Each running container costs about a second (Docker samples CPU twice), mostly waiting:
+	// enough workers keep a typical host under two seconds while still bounding the fan-out.
+	workers := max(1, min(len(items), statsWorkers))
+	for i := 0; i < workers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

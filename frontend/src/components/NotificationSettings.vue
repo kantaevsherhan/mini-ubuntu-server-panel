@@ -16,6 +16,7 @@ import ToggleSwitch from 'primevue/toggleswitch'
 import api from '../services/api'
 import { formatDateTime } from '../services/dateTime'
 import { notificationEventLabel, useI18n } from '../services/i18n'
+import { useTableRow } from '../composables/useTableRow'
 
 const props = withDefaults(defineProps<{ readOnly?: boolean }>(), { readOnly: false })
 
@@ -48,7 +49,7 @@ interface HistoryEvent {
   status: string
   created_at: string
   resolved_at: string | null
-  deliveries: Delivery[]
+  deliveries: Delivery[] | null
 }
 
 const rules = ref<Rule[]>([])
@@ -69,6 +70,7 @@ const editor = reactive({
 const severities = ['info', 'warning', 'error', 'critical']
 const toast = useToast()
 const { t, locale } = useI18n()
+const { rowSize, tallRowSize } = useTableRow()
 
 async function load() {
   loading.value = true
@@ -129,9 +131,11 @@ function severityTag(severity: string) {
 }
 
 function deliverySummary(event: HistoryEvent) {
-  if (!event.deliveries.length) return t.value.noRecipients
-  const delivered = event.deliveries.filter((item) => item.status === 'delivered').length
-  return `${delivered}/${event.deliveries.length}`
+  // The API sends null when an event was skipped before any recipient was chosen.
+  const deliveries = event.deliveries ?? []
+  if (!deliveries.length) return t.value.noRecipients
+  const delivered = deliveries.filter((item) => item.status === 'delivered').length
+  return `${delivered}/${deliveries.length}`
 }
 
 onMounted(load)
@@ -148,13 +152,18 @@ onMounted(load)
           size="small"
           scrollable
           scroll-height="32rem"
-          :virtual-scroller-options="{ itemSize: 48 }"
+          :virtual-scroller-options="{ itemSize: tallRowSize }"
           striped-rows
+          class="vt vt-tall"
         >
           <Column field="event_key" :header="t.event">
             <template #body="{ data }">
-              <div class="font-medium">{{ notificationEventLabel(data.event_key, locale) }}</div>
-              <div class="text-muted-color text-xs">{{ data.event_key }}</div>
+              <div class="cell-clip font-medium [--clip:22rem]">
+                {{ notificationEventLabel(data.event_key, locale) }}
+              </div>
+              <div class="cell-clip muted font-mono text-xs [--clip:22rem]">
+                {{ data.event_key }}
+              </div>
             </template>
           </Column>
           <Column :header="t.status">
@@ -188,9 +197,11 @@ onMounted(load)
           <Column frozen align-frozen="right">
             <template #body="{ data }">
               <Button
+                v-tooltip.left="t.edit"
                 icon="pi pi-pencil"
                 text
                 rounded
+                size="small"
                 :aria-label="t.edit"
                 @click="openEditor(data)"
               />
@@ -209,7 +220,9 @@ onMounted(load)
           size="small"
           scrollable
           scroll-height="24rem"
-          :virtual-scroller-options="{ itemSize: 46 }"
+          :virtual-scroller-options="{ itemSize: rowSize }"
+          striped-rows
+          class="vt"
         >
           <Column :header="t.event"
             ><template #body="{ data }">{{
@@ -227,9 +240,11 @@ onMounted(load)
             ><template #body="{ data }">{{ deliverySummary(data) }}</template></Column
           >
           <Column :header="t.created"
-            ><template #body="{ data }">{{
-              formatDateTime(data.created_at, locale)
-            }}</template></Column
+            ><template #body="{ data }"
+              ><span class="muted tabular-nums">{{
+                formatDateTime(data.created_at, locale)
+              }}</span></template
+            ></Column
           >
         </DataTable>
       </template>

@@ -93,8 +93,8 @@ function submit() {
 </script>
 
 <template>
-  <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-    <div class="space-y-4">
+  <div class="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+    <div class="min-w-0 space-y-4">
       <section class="panel-card p-5">
         <div class="mb-1 flex items-center gap-2">
           <i class="pi pi-box text-[var(--p-primary-color)]" />
@@ -124,7 +124,11 @@ function submit() {
                 }}</span
               >
             </span>
-            <Tag :value="engineLabels[target.engine]" severity="secondary" class="shrink-0" />
+            <Tag
+              :value="engineLabels[target.engine]"
+              severity="secondary"
+              class="hidden shrink-0 sm:inline-flex"
+            />
             <Tag
               v-if="!target.has_password"
               :value="t.dbNoPassword"

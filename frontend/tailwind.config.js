@@ -5,8 +5,19 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
+        sans: ['Inter', 'Segoe UI', 'system-ui', '-apple-system', 'Roboto', 'sans-serif'],
+        // Bare `monospace` resolves to Courier New on Windows, so list the common system monospace fonts.
+        mono: [
+          'JetBrains Mono',
+          'Cascadia Mono',
+          'SF Mono',
+          'Menlo',
+          'Consolas',
+          'DejaVu Sans Mono',
+          'Liberation Mono',
+          'ui-monospace',
+          'monospace',
+        ],
       },
     },
   },

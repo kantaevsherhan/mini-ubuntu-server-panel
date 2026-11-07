@@ -239,17 +239,19 @@ onMounted(load)
 </script>
 
 <template>
-  <section>
-    <div class="mb-5 flex flex-wrap items-center gap-3">
-      <h1 class="text-2xl font-semibold">{{ t.users }}</h1>
-      <span class="flex-1" />
+  <section class="page">
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">{{ t.users }}</h1>
+        <p class="page-subtitle">{{ t.usersHint }}</p>
+      </div>
       <Button
         v-if="authStore.role === 'admin'"
         :label="t.createUser"
         icon="pi pi-user-plus"
         @click="openCreate"
       />
-    </div>
+    </header>
     <DataTable
       :value="users"
       :loading="loading"

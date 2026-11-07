@@ -236,8 +236,8 @@ const tableIcon = (type: string) =>
 </script>
 
 <template>
-  <section class="space-y-4">
-    <header class="page-header !mb-0">
+  <section class="page">
+    <header class="page-header">
       <div class="min-w-0">
         <h1 class="page-title">{{ t.databases }}</h1>
         <p class="page-subtitle">{{ t.databaseHint }}</p>
