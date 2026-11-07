@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
@@ -7,6 +7,7 @@ import DataTable from 'primevue/datatable'
 import InputText from 'primevue/inputtext'
 import ProgressBar from 'primevue/progressbar'
 import Tag from 'primevue/tag'
+import ToggleSwitch from 'primevue/toggleswitch'
 import RefreshControls from '../components/RefreshControls.vue'
 import { useAutoRefresh } from '../composables/useAutoRefresh'
 import api from '../services/api'
@@ -67,6 +68,18 @@ const query = ref('')
 const router = useRouter()
 const auth = useAuthStore()
 const { t, locale } = useI18n()
+
+// Docker bridges and veth pairs multiply with every container; hide them by default.
+const virtualInterface = /^(veth|br-|docker\d|virbr|cni|flannel|cali|vxlan|tun|tap)/
+const showVirtual = ref(localStorage.getItem('system-show-virtual') === 'true')
+watch(showVirtual, (value) => localStorage.setItem('system-show-virtual', String(value)))
+const virtualCount = computed(
+  () => info.value?.interfaces.filter((item) => virtualInterface.test(item.name)).length ?? 0,
+)
+const visibleInterfaces = computed(() => {
+  const all = (info.value?.interfaces ?? []).filter((item) => item.name !== 'lo')
+  return showVirtual.value ? all : all.filter((item) => !virtualInterface.test(item.name))
+})
 
 const filteredPorts = computed(() => {
   const value = query.value.trim().toLocaleLowerCase()
@@ -133,11 +146,11 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
 </script>
 
 <template>
-  <section class="space-y-4">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+  <section class="space-y-5">
+    <header class="page-header !mb-0">
       <div>
-        <h1 class="text-2xl font-semibold">{{ t.system }}</h1>
-        <p class="muted mt-1 text-sm">{{ t.systemHint }}</p>
+        <h1 class="page-title">{{ t.system }}</h1>
+        <p class="page-subtitle">{{ t.systemHint }}</p>
       </div>
       <RefreshControls
         :loading="loading"
@@ -145,25 +158,28 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
         @refresh="load()"
         @toggle="toggleAutoRefresh"
       />
-    </div>
+    </header>
 
-    <div v-if="info" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <div class="panel-card space-y-1 p-4">
-        <div class="muted text-xs uppercase">{{ t.hostname }}</div>
+    <div v-if="info" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="panel-card stat-card space-y-1">
+        <div class="stat-card__label">{{ t.hostname }}</div>
         <div class="text-lg font-semibold break-all">{{ info.hostname }}</div>
         <div class="text-sm">{{ info.os }}</div>
         <div class="muted font-mono text-xs">{{ info.kernel }} · {{ info.arch }}</div>
       </div>
-      <div class="panel-card space-y-1 p-4">
-        <div class="muted text-xs uppercase">{{ t.cpu }}</div>
+      <div class="panel-card stat-card space-y-1">
+        <div class="stat-card__label">{{ t.cpu }}</div>
         <div class="text-lg font-semibold">{{ info.cpu_count }} {{ t.cores }}</div>
         <div class="truncate text-sm" :title="info.cpu_model">{{ info.cpu_model || '—' }}</div>
         <div class="muted text-xs">
-          {{ t.loadAverage }}: <span class="font-mono">{{ info.load.join(' / ') }}</span>
+          {{ t.loadAverage }}:
+          <span class="whitespace-nowrap font-mono">{{
+            info.load.map((value) => value.toFixed(2)).join(' / ')
+          }}</span>
         </div>
       </div>
-      <div class="panel-card space-y-2 p-4">
-        <div class="muted text-xs uppercase">{{ t.memory }}</div>
+      <div class="panel-card stat-card space-y-2">
+        <div class="stat-card__label">{{ t.memory }}</div>
         <div class="text-sm">
           {{ formatBytes(memoryUsed) }} / {{ formatBytes(info.memory.total_bytes) }}
         </div>
@@ -178,14 +194,14 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
           {{ formatBytes(info.memory.swap_total_bytes) }}
         </div>
       </div>
-      <div class="panel-card space-y-1 p-4">
-        <div class="muted text-xs uppercase">{{ t.uptime }}</div>
+      <div class="panel-card stat-card space-y-1">
+        <div class="stat-card__label">{{ t.uptime }}</div>
         <div class="text-lg font-semibold">{{ formatUptime(info.uptime_seconds) }}</div>
       </div>
     </div>
 
     <div class="space-y-2">
-      <h2 class="text-lg font-semibold">{{ t.disks }}</h2>
+      <h2 class="section-title">{{ t.disks }}</h2>
       <DataTable :value="info?.disks || []" :loading="loading" size="small" data-key="device">
         <Column field="mountpoint" :header="t.mountpoint" sortable>
           <template #body="{ data }"
@@ -221,7 +237,7 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
     </div>
 
     <div class="space-y-2">
-      <h2 class="text-lg font-semibold">{{ t.listeningPorts }}</h2>
+      <h2 class="section-title">{{ t.listeningPorts }}</h2>
       <p class="muted text-sm">{{ t.listeningPortsHint }}</p>
       <InputText v-model="query" :placeholder="t.searchPorts" class="w-full sm:max-w-md" />
       <DataTable
@@ -254,19 +270,22 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
         <Column field="process" :header="t.process" sortable>
           <template #body="{ data }">
             <span v-if="data.process"
-              >{{ data.process }} <span class="muted">({{ data.pid }})</span></span
+              >{{ data.process }}
+              <span v-if="data.pid" class="muted font-mono text-xs">#{{ data.pid }}</span></span
             >
             <span v-else class="muted">—</span>
           </template>
         </Column>
-        <Column v-if="auth.role === 'admin'" :header="t.actions" class="w-44">
+        <Column v-if="auth.role === 'admin'" class="w-16 text-right">
           <template #body="{ data }">
             <Button
               v-if="data.public"
-              :label="t.openInFirewall"
+              v-tooltip.left="t.openInFirewall"
               icon="pi pi-shield"
               size="small"
               text
+              rounded
+              :aria-label="t.openInFirewall"
               @click="openInFirewall(data)"
             />
           </template>
@@ -276,8 +295,21 @@ const { enabled: autoRefresh, toggle: toggleAutoRefresh } = useAutoRefresh(load,
     </div>
 
     <div class="space-y-2">
-      <h2 class="text-lg font-semibold">{{ t.interfaces }}</h2>
-      <DataTable :value="info?.interfaces || []" :loading="loading" size="small" data-key="name">
+      <div class="flex flex-wrap items-center gap-3">
+        <h2 class="section-title">{{ t.interfaces }}</h2>
+        <span class="flex-1" />
+        <label v-if="virtualCount" class="muted flex items-center gap-2 text-sm">
+          <ToggleSwitch v-model="showVirtual" input-id="show-virtual-interfaces" />
+          <span>{{ t.showVirtualInterfaces }} ({{ virtualCount }})</span>
+        </label>
+      </div>
+      <DataTable
+        :value="visibleInterfaces"
+        :loading="loading"
+        size="small"
+        data-key="name"
+        scrollable
+      >
         <Column field="name" :header="t.interfaceName" sortable>
           <template #body="{ data }">
             <div class="flex items-center gap-2">

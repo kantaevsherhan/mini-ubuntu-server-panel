@@ -41,14 +41,58 @@ test.beforeEach(async ({ page }) => {
           },
         },
       })
-    if (path.endsWith('/databases/browse')) {
+    if (path.endsWith('/databases/containers')) return route.fulfill({ json: [] })
+    if (path.endsWith('/databases/overview'))
+      return route.fulfill({
+        json: {
+          version: 'PostgreSQL 17',
+          databases: ['fixture'],
+          schemas: ['public'],
+          schema: 'public',
+          tables: [{ name: 'records', type: 'table', rows: 101, size: 8192, comment: '' }],
+        },
+      })
+    if (path.endsWith('/databases/structure'))
+      return route.fulfill({
+        json: {
+          type: 'table',
+          columns: [
+            {
+              name: 'id',
+              type: 'integer',
+              nullable: false,
+              default: '',
+              primary: true,
+              auto_increment: true,
+              comment: '',
+            },
+            {
+              name: 'value',
+              type: 'text',
+              nullable: true,
+              default: '',
+              primary: false,
+              auto_increment: false,
+              comment: '',
+            },
+          ],
+          indexes: [],
+          foreign_keys: [],
+          ddl: 'CREATE TABLE records (id integer PRIMARY KEY, value text);',
+        },
+      })
+    if (path.endsWith('/databases/select')) {
       const body = route.request().postDataJSON()
       return route.fulfill({
         json: {
-          tables: ['records'],
-          columns: body.table ? ['id', 'value'] : [],
-          rows: body.table ? [{ id: body.offset + 1, value: '<script>safe</script>' }] : [],
-          has_more: body.offset === 0,
+          columns: ['id', 'value'],
+          types: [],
+          rows: [[body.offset + 1, '<script>safe</script>']],
+          primary_key: ['id'],
+          total: 101,
+          affected: 0,
+          duration_ms: 1,
+          truncated: false,
         },
       })
     }
@@ -83,25 +127,41 @@ test('Docker samples refresh at 30 seconds and can be paused', async ({ page }) 
   })
 })
 
-test('Database client connects, pages, escapes data and clears credentials', async ({ page }) => {
+test('Database client connects, edits rows, escapes data and clears credentials', async ({
+  page,
+}) => {
+  const rowRequests: unknown[] = []
+  await page.route('**/api/v1/databases/rows', async (route) => {
+    rowRequests.push(route.request().postDataJSON())
+    await route.fulfill({ json: { affected: 1 } })
+  })
   await page.goto('/databases')
   await page.getByLabel('Имя базы данных', { exact: true }).fill('fixture')
   await page.getByLabel('Пароль', { exact: true }).fill('only-in-memory')
   await page.getByRole('button', { name: 'Подключиться к БД' }).click()
   await expect(page.getByText('Подключено', { exact: true })).toBeVisible()
-  await page.getByLabel('Таблица / коллекция').click()
-  await page.getByRole('option', { name: 'records', exact: true }).click()
+  await page.locator('.db-side__list').getByText('records', { exact: true }).click()
   await expect(page.getByText('<script>safe</script>')).toBeVisible()
-  await page.getByRole('button', { name: 'Далее', exact: true }).click()
-  await expect(page.getByText('Записи: 101–101')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Далее', exact: true })).toBeDisabled()
+  await expect(page.getByText('Всего:')).toBeVisible()
+  await page.getByRole('button', { name: 'Изменить', exact: true }).first().click()
+  const dialog = page.getByRole('dialog')
+  await dialog.locator('#db-field-value').fill('changed')
+  await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click()
+  await expect.poll(() => rowRequests.length).toBe(1)
+  expect(rowRequests[0]).toMatchObject({
+    action: 'update',
+    table: 'records',
+    keys: [{ id: 1 }],
+    values: { value: 'changed' },
+  })
+  await page.getByRole('tab', { name: 'Структура' }).click()
+  await expect(page.getByText('CREATE TABLE records')).toBeVisible()
   expect(
     await page.evaluate(() => JSON.stringify(localStorage) + JSON.stringify(sessionStorage)),
   ).not.toContain('only-in-memory')
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(
     false,
   )
-  await expect(page.locator('.p-datatable-mask')).toHaveCount(0)
   await page.screenshot({
     path: `test-results/databases-${test.info().project.name}.png`,
     fullPage: true,

@@ -112,6 +112,10 @@ func (a API) Register(app *fiber.App) {
 	secured.Get("/docker/stats", a.requireRole("admin", "operator"), a.dockerStats)
 	secured.Put("/docker/containers/:id/limits", a.requireRole("admin"), a.dockerLimits)
 	secured.Post("/databases/browse", a.requireRole("admin"), a.databaseBrowse)
+	secured.Get("/databases/containers", a.requireRole("admin"), a.databaseContainers)
+	for _, op := range []string{"overview", "structure", "select", "query", "rows"} {
+		secured.Post("/databases/"+op, a.requireRole("admin"), a.databaseClient(op))
+	}
 	secured.Get("/docker/containers", a.requireRole("admin", "operator"), a.dockerContainers)
 	secured.Post("/docker/containers", a.requireRole("admin"), a.dockerRunContainer)
 	secured.Post("/docker/containers/:id/action", a.requireRole("admin", "operator"), a.dockerContainerAction)

@@ -98,9 +98,9 @@ func BrowseExternal(ctx context.Context, r ExternalRequest) (ExternalResult, err
 	return result, nil
 }
 
-func browseSQL(ctx context.Context, r ExternalRequest) (ExternalResult, error) {
-	result := ExternalResult{Tables: []string{}, Rows: []map[string]any{}, Columns: []string{}}
-	var dialector gorm.Dialector
+// sqlDialector builds a request-scoped PostgreSQL or MySQL dialector. The
+// statement timeout bounds server-side work even if the client disconnects.
+func sqlDialector(r ExternalRequest, timeout time.Duration) gorm.Dialector {
 	addr := net.JoinHostPort(r.Host, strconv.Itoa(r.Port))
 	if r.Engine == "postgres" {
 		u := url.URL{Scheme: "postgres", Host: addr, Path: "/" + r.Database, User: url.UserPassword(r.Username, r.Password)}
@@ -110,24 +110,29 @@ func browseSQL(ctx context.Context, r ExternalRequest) (ExternalResult, error) {
 			q.Set("sslmode", "verify-full")
 		}
 		q.Set("connect_timeout", "5")
-		q.Set("statement_timeout", "8000")
+		q.Set("statement_timeout", strconv.FormatInt(timeout.Milliseconds(), 10))
+		q.Set("application_name", "mini-ubuntu-server")
 		u.RawQuery = q.Encode()
-		dialector = postgres.New(postgres.Config{DSN: u.String(), PreferSimpleProtocol: true})
-	} else {
-		config := mysqldriver.NewConfig()
-		config.User = r.Username
-		config.Passwd = r.Password
-		config.Net = "tcp"
-		config.Addr = addr
-		config.DBName = r.Database
-		config.Timeout = 5 * time.Second
-		config.ReadTimeout = 8 * time.Second
-		config.WriteTimeout = 8 * time.Second
-		if r.TLS {
-			config.TLSConfig = "true"
-		}
-		dialector = mysql.New(mysql.Config{DSN: config.FormatDSN(), SkipInitializeWithVersion: true})
+		return postgres.New(postgres.Config{DSN: u.String(), PreferSimpleProtocol: true})
 	}
+	config := mysqldriver.NewConfig()
+	config.User = r.Username
+	config.Passwd = r.Password
+	config.Net = "tcp"
+	config.Addr = addr
+	config.DBName = r.Database
+	config.Timeout = 5 * time.Second
+	config.ReadTimeout = timeout
+	config.WriteTimeout = timeout
+	if r.TLS {
+		config.TLSConfig = "true"
+	}
+	return mysql.New(mysql.Config{DSN: config.FormatDSN(), SkipInitializeWithVersion: true})
+}
+
+func browseSQL(ctx context.Context, r ExternalRequest) (ExternalResult, error) {
+	result := ExternalResult{Tables: []string{}, Rows: []map[string]any{}, Columns: []string{}}
+	dialector := sqlDialector(r, 8*time.Second)
 	db, err := gorm.Open(dialector, &gorm.Config{Logger: logger.Default.LogMode(logger.Silent), DisableAutomaticPing: true})
 	if err != nil {
 		return result, err
@@ -178,8 +183,8 @@ func browseSQL(ctx context.Context, r ExternalRequest) (ExternalResult, error) {
 	return result, err
 }
 
-func browseMongo(ctx context.Context, r ExternalRequest) (ExternalResult, error) {
-	result := ExternalResult{Tables: []string{}, Rows: []map[string]any{}, Columns: []string{}}
+// connectMongo opens a request-scoped client and verifies it with a ping.
+func connectMongo(ctx context.Context, r ExternalRequest) (*mongo.Client, error) {
 	u := url.URL{Scheme: "mongodb", Host: net.JoinHostPort(r.Host, strconv.Itoa(r.Port)), Path: "/" + r.Database}
 	if r.Username != "" {
 		u.User = url.UserPassword(r.Username, r.Password)
@@ -194,16 +199,28 @@ func browseMongo(ctx context.Context, r ExternalRequest) (ExternalResult, error)
 	u.RawQuery = q.Encode()
 	client, err := mongo.Connect(options.Client().ApplyURI(u.String()).SetServerSelectionTimeout(5 * time.Second).SetConnectTimeout(5 * time.Second).SetMaxPoolSize(1))
 	if err != nil {
-		return result, err
+		return nil, err
 	}
-	defer func() {
-		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		_ = client.Disconnect(closeCtx)
-	}()
 	if err = client.Ping(ctx, readpref.Primary()); err != nil {
+		disconnectMongo(client)
+		return nil, err
+	}
+	return client, nil
+}
+
+func disconnectMongo(client *mongo.Client) {
+	closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_ = client.Disconnect(closeCtx)
+}
+
+func browseMongo(ctx context.Context, r ExternalRequest) (ExternalResult, error) {
+	result := ExternalResult{Tables: []string{}, Rows: []map[string]any{}, Columns: []string{}}
+	client, err := connectMongo(ctx, r)
+	if err != nil {
 		return result, err
 	}
+	defer disconnectMongo(client)
 	db := client.Database(r.Database)
 	tables, err := db.ListCollectionNames(ctx, bson.D{})
 	if err != nil {

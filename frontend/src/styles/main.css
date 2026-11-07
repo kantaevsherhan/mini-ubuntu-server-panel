@@ -72,6 +72,13 @@ body,
   color: var(--p-text-muted-color);
 }
 
+.section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
 .panel-card {
   border: 1px solid var(--app-border);
   background: var(--app-surface);

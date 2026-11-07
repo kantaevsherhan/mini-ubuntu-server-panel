@@ -212,6 +212,6 @@ sudo mini-ubuntu-server uninstall
 
 ## Docker resources and database clients
 
-Docker shows CPU, RAM, network/disk I/O and PIDs with pausable 30-second refresh. Administrators configure CPU/RAM limits at creation or from the container menu. The Databases page includes PostgreSQL, MySQL/MariaDB and MongoDB clients for browsing tables/collections in 100-record pages. Credentials stay in browser memory only. See [Docker and database browser](docs/docker-databases.md) for permissions, TLS, API and limitations.
+Docker shows CPU, RAM, network/disk I/O and PIDs with pausable 30-second refresh. Administrators configure CPU/RAM limits at creation or from the container menu. The Databases page is an Adminer-style client for PostgreSQL, MySQL/MariaDB and MongoDB: one-click connection to database containers (credentials resolved on the server), tables and schemas, structure with indexes, foreign keys and DDL, filtered and sorted data with insert/edit/delete, and an SQL editor with completion. Manual credentials stay in browser memory only. See [Docker and database client](docs/docker-databases.md) for permissions, TLS, API and limitations.
 
 Install the verified local build with `sudo bash scripts/install-resource-db-build.sh`; it backs up the binary, configuration and data, restarts the service and rolls back the binary if health verification fails.
